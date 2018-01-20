@@ -68,26 +68,28 @@ do
   end
 end
 
-task init_galaxy(bodies : region(ispace(ptr), body), from : uint, num : uint, max_radius : double, cx : double, cy : double, sx : double, sy : double)
+
+task init_black_hole(bodies : region(ispace(ptr), body), mass : uint, cx : double, cy : double, sx : double, sy : double, index: uint)
+  where writes(bodies)
+do
+  bodies[index] = { x = cx, y = cy, x_speed = sx, y_speed = sy, mass = mass, index = index }
+end
+
+task init_star(bodies : region(ispace(ptr), body), num : uint, max_radius : double, cx : double, cy : double, sx : double, sy : double, index: uint)
   where writes(bodies)
 do
   var total_m = 1.5 * num
-  var mass_black_hole = num
   var cube_max_radius = max_radius * max_radius * max_radius
   
-  bodies[from] = { x = cx, y = cy, x_speed = sx, y_speed = sy, mass = mass_black_hole, index = from }
-
-  for i = from + 1, from + num do
-    var angle = drand48() * 2 * cmath.M_PI
-    var radius = 25 + max_radius * drand48()
-    var x_star = cx + radius * sin(angle)
-    var y_star = cy + radius * cos(angle)
-    var speed = sqrt(gee * mass_black_hole / radius + gee * total_m * radius * radius / cube_max_radius)
-    var x_speed_star = sx + speed * sin(angle + cmath.M_PI / 2)
-    var y_speed_star = sy + speed * cos(angle + cmath.M_PI / 2)
-    var mass_star = 1.0 + drand48()
-    bodies[i] = { x = x_star, y = y_star, x_speed = x_speed_star, y_speed = y_speed_star, mass = mass_star, index = i }
-  end
+  var angle = drand48() * 2 * cmath.M_PI
+  var radius = 25 + max_radius * drand48()
+  var x_star = cx + radius * sin(angle)
+  var y_star = cy + radius * cos(angle)
+  var speed = sqrt(gee * num / radius + gee * total_m * radius * radius / cube_max_radius)
+  var x_speed_star = sx + speed * sin(angle + cmath.M_PI / 2)
+  var y_speed_star = sy + speed * cos(angle + cmath.M_PI / 2)
+  var mass_star = 1.0 + drand48()
+  bodies[index] = { x = x_star, y = y_star, x_speed = x_speed_star, y_speed = y_speed_star, mass = mass_star, index = index }
 end
 
 task init_2_galaxies(bodies : region(ispace(ptr), body), conf : Config)
@@ -95,8 +97,24 @@ task init_2_galaxies(bodies : region(ispace(ptr), body), conf : Config)
 do
   srand48(conf.random_seed)
 
-  init_galaxy(bodies, 0, conf.num_bodies / 8, 300, 0, 0, 0, 0)
-  init_galaxy(bodies, conf.num_bodies / 8, conf.num_bodies / 8 * 7, 350, -1800, -1200, 0, 0)
+  var bodies_partition = partition(equal, bodies, ispace(ptr, conf.num_bodies))
+
+  var num1 = conf.num_bodies / 8
+  init_black_hole(bodies_partition[0], num1, 0, 0, 0, 0, 0)
+  
+  __demand(__parallel)
+  for i = 1, num1 do
+    init_star(bodies_partition[i], num1, 300, 0, 0, 0, 0, i)
+  end
+
+  var num2 = conf.num_bodies / 8 * 7
+  init_black_hole(bodies_partition[num1], num2, -1800, -1200, 0, 0, num1)
+  
+    __demand(__parallel)
+  for i = num1 + 1, num1 + num2 do
+    init_star(bodies_partition[i], num2, 350, -1800, -1200, 0, 0, i)
+  end
+
 end
 
 task print_bodies_initial(bodies : region(ispace(ptr), body))
@@ -131,7 +149,6 @@ task main()
   boundaries[0] = { minX = bodies[0].x, minY = bodies[0].y, maxX = bodies[0].x, maxY = bodies[0].y }
   
   var bodies_partition = partition(equal, bodies, body_index)
-  __demand(__parallel)
   for i in body_index do
     update_boundaries(bodies_partition[i], boundaries)
   end
