@@ -29,6 +29,13 @@ fspace body {
   index: uint
 }
 
+fspace boundary {
+  minX: double,
+  minY: double,
+  maxX: double,
+  maxY: double
+}
+
 terra parse_input_args(conf : Config)
   var args = c.legion_runtime_get_input_args()
   for i = 0, args.argc do
@@ -44,6 +51,21 @@ terra parse_input_args(conf : Config)
     end
   end
   return conf
+end
+
+task update_boundaries(bodies: region(ispace(ptr), body), boundaries: region(ispace(ptr), boundary))
+  where
+  reads(bodies.{x, y}),
+  reads(boundaries),
+  reduces min(boundaries.{minX, minY}),
+  reduces max(boundaries.{maxX, maxY})
+do
+  for body in bodies do
+    boundaries[0].minX min = min(body.x, boundaries[0].minX)
+    boundaries[0].minY min = min(body.y, boundaries[0].minY)
+    boundaries[0].maxX max = max(body.x, boundaries[0].maxX)
+    boundaries[0].maxY max = max(body.y, boundaries[0].maxY)
+  end
 end
 
 task init_galaxy(bodies : region(ispace(ptr), body), from : uint, num : uint, max_radius : double, cx : double, cy : double, sx : double, sy : double)
@@ -103,5 +125,16 @@ task main()
   init_2_galaxies(bodies, conf)
 
   print_bodies_initial(bodies)
+
+  var boundaries_index = ispace(ptr, 1)
+  var boundaries = region(boundaries_index, boundary) 
+  boundaries[0] = { minX = bodies[0].x, minY = bodies[0].y, maxX = bodies[0].x, maxY = bodies[0].y }
+  
+  var bodies_partition = partition(equal, bodies, body_index)
+  for i in body_index do
+    update_boundaries(bodies_partition[i], boundaries)
+  end
+
+  c.printf("boundaries: minX=%f minY=%f maxX=%f maxY=%f\n", boundaries[0].minX, boundaries[0].minY, boundaries[0].maxX, boundaries[0].maxY) 
 end
 regentlib.start(main)
