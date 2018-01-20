@@ -131,6 +131,7 @@ task main()
   boundaries[0] = { minX = bodies[0].x, minY = bodies[0].y, maxX = bodies[0].x, maxY = bodies[0].y }
   
   var bodies_partition = partition(equal, bodies, body_index)
+  __demand(__parallel)
   for i in body_index do
     update_boundaries(bodies_partition[i], boundaries)
   end
