@@ -43,6 +43,13 @@ fspace boundary {
   max_y: double
 }
 
+fspace quad {
+  mass_x: double,
+  mass_y: double,
+  mass: double,
+  total: uint
+}
+
 terra parse_input_args(conf : Config)
   var args = c.legion_runtime_get_input_args()
   for i = 0, args.argc do
@@ -119,13 +126,34 @@ do
   c.printf("\n") 
 end
 
+task build_quad(bodies: region(body), sector: int2d)
+  where
+  reads(bodies.x)
+do
+  for body in bodies do
+    c.printf("%ld %ld\n", sector.x, sector.y)
+  end
+end
+
 task assign_sectors(bodies: region(body), min_x: double, min_y: double, size_x: double, size_y: double)
   where
-  reads(bodies.{x, y}),
+  reads(bodies.{x, y, sector, index}),
   writes(bodies.sector)
 do
   for body in bodies do
-    body.sector = { x = cmath.floor((body.x - min_x) / size_x) , y = cmath.floor((body.y - min_y) / size_y) }
+    var sector_x: int64 = cmath.floor((body.x - min_x) / size_x)
+    if (sector_x >= sector_precision) then
+      sector_x = sector_x - 1
+    end
+
+    var sector_y: int64 = cmath.floor((body.y - min_y) / size_y)
+    if (sector_y >= sector_precision) then
+      sector_y = sector_y - 1
+    end
+
+    body.sector = { x = sector_x , y = sector_y }
+
+    c.printf("x: %d, y: %d\n", sector_x, sector_y)
   end
 end
 
@@ -149,7 +177,7 @@ task run_iteration(bodies : region(body), body_index : ispace(ptr))
   reads(bodies),
   writes(bodies.sector)
 do
-var boundaries_index = ispace(ptr, 1)
+  var boundaries_index = ispace(ptr, 1)
   var boundaries = region(boundaries_index, boundary) 
   boundaries[0] = { min_x = bodies[0].x, min_y = bodies[0].y, max_x = bodies[0].x, max_y = bodies[0].y }
   
@@ -168,7 +196,14 @@ var boundaries_index = ispace(ptr, 1)
   end
 
   var sector_index = ispace(int2d, { x = sector_precision, y = sector_precision })
-  var sectors = partition(bodies.sector, sector_index)
+  var bodies_by_sector = partition(bodies.sector, sector_index)
+  var quads = region(sector_index, quad)
+  var quad_partitions = partition(equal, quads, sector_index)
+  c.printf("\n")
+  for i in bodies_by_sector.colors do
+    c.printf("x: %d, y: %d\n", i.x, i.y)
+    build_quad(bodies_by_sector[i], i)
+  end
 end
 
 task main()
