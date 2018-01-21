@@ -47,7 +47,8 @@ fspace quad {
   mass_x: double,
   mass_y: double,
   mass: double,
-  total: uint
+  total: uint,
+  ne: ptr
 }
 
 terra parse_input_args(conf : Config)
