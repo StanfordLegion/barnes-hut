@@ -43,18 +43,6 @@ fspace boundary {
   max_y: double
 }
 
-fspace quad {
-  mass_x: double,
-  mass_y: double,
-  mass: double,
-  total: uint,
-  body_index: uint,
-  ne: uint,
-  nw: uint,
-  se: uint,
-  sw: uint
-}
-
 struct quad_str {
   mass_x: double,
   mass_y: double,
@@ -206,11 +194,9 @@ local terra add_fork(from_x: double, from_y: double, size: double, cur: quad_str
   return body
 end
 
-task build_quad(bodies: region(body), quads: region(ispace(int1d), quad), sector: int2d, from_x: double, from_y: double, sector_size: double)
+task build_quad(bodies: region(body), sector: int2d, from_x: double, from_y: double, sector_size: double)
   where
-  reads(bodies.{x, y, mass}),
-  reads(quads),
-  writes(quads)
+  reads(bodies.{x, y, mass})
 do
   c.printf("a")
   var root : quad_str
@@ -291,11 +277,9 @@ do
   var child_index = ispace(int2d, { x = 2, y = 2 })
 
   var bodies_by_sector = partition(bodies.sector, sector_index)
-  var quads = region(ispace(int1d, 100), quad)
-  var quad_partitions = partition(equal, quads, sector_index)
   c.printf("\n")
   for i in bodies_by_sector.colors do
-    build_quad(bodies_by_sector[i], quads, i, 1, 1, 1)
+    build_quad(bodies_by_sector[i], i, 1, 1, 1)
   end
 end
 
