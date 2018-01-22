@@ -137,8 +137,6 @@ do
 end
 
 local terra add_fork(from_x: double, from_y: double, size: double, cur: quad_str, body: quad_str): quad_str
-  c.printf("b")
-
   if cur.type == 0 then
     return body
   elseif cur.type == 1 then
@@ -198,7 +196,6 @@ task build_quad(bodies: region(body), sector: int2d, from_x: double, from_y: dou
   where
   reads(bodies.{x, y, mass})
 do
-  c.printf("a")
   var root : quad_str
   root.total = 0
   for body in bodies do
