@@ -48,7 +48,28 @@ fspace quad {
   mass_y: double,
   mass: double,
   total: uint,
-  ne: ptr
+  body_index: uint,
+  ne: uint,
+  nw: uint,
+  se: uint,
+  sw: uint
+}
+
+struct quad_str {
+  mass_x: double,
+  mass_y: double,
+  mass: double,
+  total: uint,
+  ne: &quad_str,
+  nw: &quad_str,
+  se: &quad_str,
+  sw: &quad_str
+
+  center_x: double,
+  center_y: double,
+  size: double,
+
+  type: uint
 }
 
 terra parse_input_args(conf : Config)
@@ -109,7 +130,7 @@ do
   var num2 = conf.num_bodies / 8 * 7
   init_black_hole(bodies_partition[num1], num2, -1800, -1200, 0, 0, num1)
   
-    __demand(__parallel)
+  __demand(__parallel)
   for i = num1 + 1, num1 + num2 do
     init_star(bodies_partition[i], num2, 350, -1800, -1200, 0, 0, i)
   end
@@ -127,12 +148,81 @@ do
   c.printf("\n") 
 end
 
-task build_quad(bodies: region(body), sector: int2d)
+local terra add_fork(from_x: double, from_y: double, size: double, cur: quad_str, body: quad_str): quad_str
+  c.printf("b")
+
+  if cur.type == 0 then
+    return body
+  elseif cur.type == 1 then
+    var center_x = from_x + cur.size / 2
+    var center_y = from_y + cur.size / 2
+    var fork : quad_str
+    fork.center_x = center_x
+    fork.center_y = center_y
+    fork.size = size
+    fork.type = 2
+    fork.ne = nil
+    fork.nw = nil
+    fork.se = nil
+    fork.sw = nil
+    return add_fork(from_x, from_y, size, add_fork(from_x, from_y, size, fork, cur), body)
+  elseif cur.type == 2 then
+    var half_size = size / 2
+    if body.mass_x <= cur.center_x then
+      if body.mass_y <= cur.center_y then
+        if body.nw == nil then
+          body.nw = &body
+        else
+          var result = add_fork(from_x, from_y, half_size, @body.nw, body)
+          body.nw = &result
+        end
+      else
+        if body.sw == nil then
+          body.sw = &body
+        else
+          var result = add_fork(from_x, cur.center_y, half_size, @body.sw, body)
+          body.sw = &result
+        end      
+      end
+    else
+      if body.mass_y <= cur.center_y then
+        if body.ne == nil then
+          body.ne = &body
+        else
+          var result = add_fork(cur.center_x, from_y, half_size, @body.ne, body)
+          body.ne = &result
+        end
+      else
+        if body.se == nil then
+          body.se = &body
+        else
+          var result = add_fork(cur.center_x, cur.center_y, half_size, @body.se, body)
+          body.se = &result
+        end      
+      end
+    end
+  end
+
+  return body
+end
+
+task build_quad(bodies: region(body), quads: region(ispace(int1d), quad), sector: int2d, from_x: double, from_y: double, sector_size: double)
   where
-  reads(bodies.x)
+  reads(bodies.{x, y, mass}),
+  reads(quads),
+  writes(quads)
 do
+  c.printf("a")
+  var root : quad_str
+  root.total = 0
   for body in bodies do
-    c.printf("%ld %ld\n", sector.x, sector.y)
+    var body_str : quad_str
+    body_str.mass_x = body.x
+    body_str.mass_y = body.y
+    body_str.mass = body.mass
+    body_str.total = 1 
+    body_str.type = 1   
+    root = add_fork(from_x, from_y, sector_size, root, body_str)
   end
 end
 
@@ -197,13 +287,15 @@ do
   end
 
   var sector_index = ispace(int2d, { x = sector_precision, y = sector_precision })
+  
+  var child_index = ispace(int2d, { x = 2, y = 2 })
+
   var bodies_by_sector = partition(bodies.sector, sector_index)
-  var quads = region(sector_index, quad)
+  var quads = region(ispace(int1d, 100), quad)
   var quad_partitions = partition(equal, quads, sector_index)
   c.printf("\n")
   for i in bodies_by_sector.colors do
-    c.printf("x: %d, y: %d\n", i.x, i.y)
-    build_quad(bodies_by_sector[i], i)
+    build_quad(bodies_by_sector[i], quads, i, 1, 1, 1)
   end
 end
 
