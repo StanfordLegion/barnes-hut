@@ -43,6 +43,21 @@ fspace boundary {
   max_y: double
 }
 
+fspace quad(r : region(quad(wild))) {
+  mass_x: double,
+  mass_y: double,
+  mass: double,
+  center_x: double,
+  center_y: double,
+  size: double,
+  total: uint,
+  type: uint,
+  ne: ptr(quad(wild), r),
+  nw: ptr(quad(wild), r),
+  se: ptr(quad(wild), r),
+  sw: ptr(quad(wild), r)
+}
+
 struct quad_str {
   mass_x: double,
   mass_y: double,
@@ -51,7 +66,7 @@ struct quad_str {
   ne: &quad_str,
   nw: &quad_str,
   se: &quad_str,
-  sw: &quad_str
+  sw: &quad_str,
 
   center_x: double,
   center_y: double,
@@ -136,7 +151,7 @@ do
   c.printf("\n") 
 end
 
-local terra add_fork(from_x: double, from_y: double, size: double, cur: quad_str, body: quad_str): quad_str
+local terra add_node_str(from_x: double, from_y: double, size: double, cur: quad_str, body: quad_str): quad_str
   if cur.type == 0 then
     return body
   elseif cur.type == 1 then
@@ -151,7 +166,7 @@ local terra add_fork(from_x: double, from_y: double, size: double, cur: quad_str
     fork.nw = nil
     fork.se = nil
     fork.sw = nil
-    return add_fork(from_x, from_y, size, add_fork(from_x, from_y, size, fork, cur), body)
+    return add_node_str(from_x, from_y, size, add_node_str(from_x, from_y, size, fork, cur), body)
   elseif cur.type == 2 then
     var half_size = size / 2
     if body.mass_x <= cur.center_x then
@@ -159,14 +174,14 @@ local terra add_fork(from_x: double, from_y: double, size: double, cur: quad_str
         if body.nw == nil then
           body.nw = &body
         else
-          var result = add_fork(from_x, from_y, half_size, @body.nw, body)
+          var result = add_node_str(from_x, from_y, half_size, @body.nw, body)
           body.nw = &result
         end
       else
         if body.sw == nil then
           body.sw = &body
         else
-          var result = add_fork(from_x, cur.center_y, half_size, @body.sw, body)
+          var result = add_node_str(from_x, cur.center_y, half_size, @body.sw, body)
           body.sw = &result
         end      
       end
@@ -175,14 +190,14 @@ local terra add_fork(from_x: double, from_y: double, size: double, cur: quad_str
         if body.ne == nil then
           body.ne = &body
         else
-          var result = add_fork(cur.center_x, from_y, half_size, @body.ne, body)
+          var result = add_node_str(cur.center_x, from_y, half_size, @body.ne, body)
           body.ne = &result
         end
       else
         if body.se == nil then
           body.se = &body
         else
-          var result = add_fork(cur.center_x, cur.center_y, half_size, @body.se, body)
+          var result = add_node_str(cur.center_x, cur.center_y, half_size, @body.se, body)
           body.se = &result
         end      
       end
@@ -192,7 +207,7 @@ local terra add_fork(from_x: double, from_y: double, size: double, cur: quad_str
   return body
 end
 
-task build_quad(bodies: region(body), sector: int2d, from_x: double, from_y: double, sector_size: double)
+task build_quad_str(bodies: region(body), from_x: double, from_y: double, sector_size: double)
   where
   reads(bodies.{x, y, mass})
 do
@@ -205,7 +220,104 @@ do
     body_str.mass = body.mass
     body_str.total = 1 
     body_str.type = 1   
-    root = add_fork(from_x, from_y, sector_size, root, body_str)
+    root = add_node_str(from_x, from_y, sector_size, root, body_str)
+  end
+end
+
+task add_node(quads : region(quad(wild)), cur: ptr(quad(wild), quads), body: ptr(quad(wild), quads), last_used: uint): uint
+where
+  reads(quads),
+  writes(quads)
+do
+  var half_size = cur.size / 2
+  var new_last_used = last_used
+  if body.mass_x <= cur.center_x then
+    if body.mass_y <= cur.center_y then
+      if isnull(cur.sw) then
+        cur.sw = dynamic_cast(ptr(quad(quads), quads), last_used)
+      elseif dynamic_cast(ptr(quad(quads), quads), cur.sw).type == 1 then
+        var new_fork = dynamic_cast(ptr(quad(quads), quads), last_used + 1)
+        new_fork.center_x = cur.center_x - half_size / 2
+        new_fork.center_y = cur.center_y - half_size / 2
+        new_fork.size = half_size
+        cur.sw = dynamic_cast(ptr(quad(quads), quads), last_used + 1)
+        new_last_used = add_node(quads, new_fork, dynamic_cast(ptr(quad(quads), quads), cur.sw), last_used + 1)
+        new_last_used = add_node(quads, new_fork, body, new_last_used)
+      else
+        new_last_used = add_node(quads, cur.sw, body, last_used)
+      end
+    else
+      if isnull(cur.nw) then
+        cur.nw = dynamic_cast(ptr(quad(quads), quads), last_used)
+      elseif dynamic_cast(ptr(quad(quads), quads), cur.nw).type == 1 then
+        var new_fork = dynamic_cast(ptr(quad(quads), quads), last_used + 1)
+        new_fork.center_x = cur.center_x - half_size / 2
+        new_fork.center_y = cur.center_y + half_size / 2
+        new_fork.size = half_size
+        cur.nw = dynamic_cast(ptr(quad(quads), quads), last_used + 1)
+        new_last_used = add_node(quads, new_fork, dynamic_cast(ptr(quad(quads), quads), cur.nw), last_used + 1)
+        new_last_used = add_node(quads, new_fork, body, new_last_used)
+      else
+        new_last_used = add_node(quads, cur.nw, body, last_used)
+      end      
+    end
+  else
+    if body.mass_y <= cur.center_y then
+      if isnull(cur.se) then
+        cur.se = dynamic_cast(ptr(quad(quads), quads), last_used)
+      elseif dynamic_cast(ptr(quad(quads), quads), cur.se).type == 1 then
+        var new_fork = dynamic_cast(ptr(quad(quads), quads), last_used + 1)
+        new_fork.center_x = cur.center_x + half_size / 2
+        new_fork.center_y = cur.center_y - half_size / 2
+        new_fork.size = half_size
+        cur.se = dynamic_cast(ptr(quad(quads), quads), last_used + 1)
+        new_last_used = add_node(quads, new_fork, dynamic_cast(ptr(quad(quads), quads), cur.se), last_used + 1)
+        new_last_used = add_node(quads, new_fork, body, new_last_used)
+      else
+        new_last_used = add_node(quads, cur.se, body, last_used)
+      end
+    else
+      if isnull(cur.ne) then
+        cur.ne = dynamic_cast(ptr(quad(quads), quads), last_used)
+      elseif dynamic_cast(ptr(quad(quads), quads), cur.sw).type == 1 then
+        var new_fork = dynamic_cast(ptr(quad(quads), quads), last_used + 1)
+        new_fork.center_x = cur.center_x + half_size / 2
+        new_fork.center_y = cur.center_x + half_size / 2
+        new_fork.size = half_size
+        cur.ne = dynamic_cast(ptr(quad(quads), quads), last_used + 1)
+        new_last_used = add_node(quads, new_fork, dynamic_cast(ptr(quad(quads), quads), cur.ne), last_used + 1)
+        new_last_used = add_node(quads, new_fork, body, new_last_used)
+      else
+        new_last_used = add_node(quads, cur.ne, body, last_used)
+      end      
+    end
+  end  
+
+  return new_last_used
+end
+
+task build_quad(bodies: region(body), quads: region(quad(wild)), from_x: double, from_y: double, sector_size: double, start_index: int)
+  where
+  reads(bodies.{x, y, mass}),
+  writes(quads),
+  reads(quads)
+do
+  var index = start_index
+  var root = dynamic_cast(ptr(quad(quads), quads), index)
+  root.center_x = from_x + sector_size / 2
+  root.center_y = from_y + sector_size / 2
+  root.size = sector_size
+  root.type = 2
+  index = index + 1
+  for body in bodies do
+    var body_quad = dynamic_cast(ptr(quad(quads), quads), index)
+    body_quad.mass_x = body.x
+    body_quad.mass_y = body.y
+    body_quad.mass = body.mass
+    body_quad.total = 1 
+    body_quad.type = 1   
+    index = index + 1
+    index = add_node(quads, root, body_quad, index)
   end
 end
 
@@ -270,14 +382,22 @@ do
   end
 
   var sector_index = ispace(int2d, { x = sector_precision, y = sector_precision })
-  
-  var child_index = ispace(int2d, { x = 2, y = 2 })
-
   var bodies_by_sector = partition(bodies.sector, sector_index)
-  c.printf("\n")
+
+  var max_size = sector_precision * sector_precision * 100
+  var quads = region(ispace(ptr, max_size), quad(quads))
+  var quad_partitions = partition(equal, quads, sector_index)
+
   for i in bodies_by_sector.colors do
-    build_quad(bodies_by_sector[i], i, 1, 1, 1)
+    build_quad(bodies_by_sector[i], quad_partitions[i], 1, 1, 1, max_size / (sector_precision * sector_precision) * (i.x * sector_precision + i.y))
   end
+
+  --[[
+  c.printf("\n")
+  for i in quads do
+    c.printf("total: %d\n", i.total)
+  end
+  --]]
 end
 
 task main()
