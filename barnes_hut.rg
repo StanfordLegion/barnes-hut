@@ -151,89 +151,17 @@ do
   c.printf("\n") 
 end
 
-local terra add_node_str(from_x: double, from_y: double, size: double, cur: quad_str, body: quad_str): quad_str
-  if cur.type == 0 then
-    return body
-  elseif cur.type == 1 then
-    var center_x = from_x + cur.size / 2
-    var center_y = from_y + cur.size / 2
-    var fork : quad_str
-    fork.center_x = center_x
-    fork.center_y = center_y
-    fork.size = size
-    fork.type = 2
-    fork.ne = nil
-    fork.nw = nil
-    fork.se = nil
-    fork.sw = nil
-    return add_node_str(from_x, from_y, size, add_node_str(from_x, from_y, size, fork, cur), body)
-  elseif cur.type == 2 then
-    var half_size = size / 2
-    if body.mass_x <= cur.center_x then
-      if body.mass_y <= cur.center_y then
-        if body.nw == nil then
-          body.nw = &body
-        else
-          var result = add_node_str(from_x, from_y, half_size, @body.nw, body)
-          body.nw = &result
-        end
-      else
-        if body.sw == nil then
-          body.sw = &body
-        else
-          var result = add_node_str(from_x, cur.center_y, half_size, @body.sw, body)
-          body.sw = &result
-        end      
-      end
-    else
-      if body.mass_y <= cur.center_y then
-        if body.ne == nil then
-          body.ne = &body
-        else
-          var result = add_node_str(cur.center_x, from_y, half_size, @body.ne, body)
-          body.ne = &result
-        end
-      else
-        if body.se == nil then
-          body.se = &body
-        else
-          var result = add_node_str(cur.center_x, cur.center_y, half_size, @body.se, body)
-          body.se = &result
-        end      
-      end
-    end
-  end
-
-  return body
-end
-
-task build_quad_str(bodies: region(body), from_x: double, from_y: double, sector_size: double)
-  where
-  reads(bodies.{x, y, mass})
-do
-  var root : quad_str
-  root.total = 0
-  for body in bodies do
-    var body_str : quad_str
-    body_str.mass_x = body.x
-    body_str.mass_y = body.y
-    body_str.mass = body.mass
-    body_str.total = 1 
-    body_str.type = 1   
-    root = add_node_str(from_x, from_y, sector_size, root, body_str)
-  end
-end
-
 task add_node(quads : region(quad(wild)), cur: ptr(quad(wild), quads), body: ptr(quad(wild), quads), last_used: uint): uint
 where
   reads(quads),
   writes(quads)
 do
+  c.printf("Inserting cur: %d, body: %d, last_used: %d\n", cur, body, last_used)
   var half_size = cur.size / 2
   var new_last_used = last_used
   if body.mass_x <= cur.center_x then
     if body.mass_y <= cur.center_y then
-      if isnull(cur.sw) then
+      if cur.sw == dynamic_cast(ptr(quad(quads), quads), 0) then
         cur.sw = dynamic_cast(ptr(quad(quads), quads), last_used)
       elseif dynamic_cast(ptr(quad(quads), quads), cur.sw).type == 1 then
         var new_fork = dynamic_cast(ptr(quad(quads), quads), last_used + 1)
@@ -247,7 +175,7 @@ do
         new_last_used = add_node(quads, cur.sw, body, last_used)
       end
     else
-      if isnull(cur.nw) then
+      if cur.nw == dynamic_cast(ptr(quad(quads), quads), 0) then
         cur.nw = dynamic_cast(ptr(quad(quads), quads), last_used)
       elseif dynamic_cast(ptr(quad(quads), quads), cur.nw).type == 1 then
         var new_fork = dynamic_cast(ptr(quad(quads), quads), last_used + 1)
@@ -263,7 +191,7 @@ do
     end
   else
     if body.mass_y <= cur.center_y then
-      if isnull(cur.se) then
+      if cur.se == dynamic_cast(ptr(quad(quads), quads), 0) then
         cur.se = dynamic_cast(ptr(quad(quads), quads), last_used)
       elseif dynamic_cast(ptr(quad(quads), quads), cur.se).type == 1 then
         var new_fork = dynamic_cast(ptr(quad(quads), quads), last_used + 1)
@@ -277,7 +205,7 @@ do
         new_last_used = add_node(quads, cur.se, body, last_used)
       end
     else
-      if isnull(cur.ne) then
+      if cur.ne == dynamic_cast(ptr(quad(quads), quads), 0) then
         cur.ne = dynamic_cast(ptr(quad(quads), quads), last_used)
       elseif dynamic_cast(ptr(quad(quads), quads), cur.sw).type == 1 then
         var new_fork = dynamic_cast(ptr(quad(quads), quads), last_used + 1)
