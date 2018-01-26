@@ -131,7 +131,7 @@ end
 
 task build_quad(bodies: region(body), quads: region(quad(wild)), center_x: double, center_y: double, size: double)
   where
-  reads(bodies.{x, y, mass}),
+  reads(bodies.{x, y, mass, index}),
   writes(quads),
   reads(quads)
 do
@@ -147,15 +147,16 @@ do
     body_quad.mass_y = body.y
     body_quad.mass = body.mass
     body_quad.total = 1 
-    body_quad.type = 1   
-    index = index + 1
-    index = add_node(quads, root, body_quad, index)
+    body_quad.type = 1
+    body_quad.index = body.index
+    index = add_node(quads, root, body_quad, index) + 1
   end
 end
 
-task run_iteration(bodies : region(body), body_index : ispace(ptr))
+task run_iteration(bodies : region(body), new_bodies : region(body), body_index : ispace(ptr))
   where
-  reads(bodies)
+  reads(bodies),
+  writes(new_bodies)
 do
   var boundaries_index = ispace(ptr, 1)
   var boundaries = region(boundaries_index, boundary) 
@@ -176,32 +177,30 @@ do
   fill(quads.{nw, sw, ne, se}, null(ptr(quad(quads), quads)))
 
   build_quad(bodies, quads, boundaries[0].min_x + size / 2, boundaries[0].min_y + size / 2, size)
-
-  --[[
-  c.printf("\n")
-  for i in quads do
-    c.printf("total: %d\n", i.total)
-  end
-  --]]
 end
 
 task main()
   var conf : Config
   conf.num_bodies = 16
   conf.random_seed = 213
-  conf.iterations = 5
+  conf.iterations = 1
 
   conf = parse_input_args(conf)
   c.printf("circuit settings: bodies=%d seed=%d\n", conf.num_bodies, conf.random_seed) 
 
   var body_index = ispace(ptr, conf.num_bodies)
   var bodies = region(body_index, body)
+  var new_bodies = region(body_index, body)
 
   init_2_galaxies(bodies, conf)
 
   print_bodies_initial(bodies)
 
-  run_iteration(bodies, body_index)
+  for i=0,conf.iterations do
+      c.printf("Iteration %d\n", i)
+      run_iteration(bodies, new_bodies, body_index)
+      -- copy(new_bodies, bodies)
+  end
   
 end
 regentlib.start(main)
