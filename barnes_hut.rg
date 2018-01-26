@@ -29,14 +29,7 @@ fspace body {
   speed_x: double,
   speed_y: double,
   mass: double,
-  index: uint
-}
-
-fspace body_update {
-  x: double,
-  y: double,
-  speed_x: double,
-  speed_y: double,
+  index: uint,
   force_x: double,
   force_y: double
 }
@@ -68,7 +61,7 @@ end
 task init_black_hole(bodies : region(ispace(ptr), body), mass : uint, cx : double, cy : double, sx : double, sy : double, index: uint)
   where writes(bodies)
 do
-  bodies[index] = { x = cx, y = cy, speed_x = sx, speed_y = sy, mass = mass, index = index }
+  bodies[index] = { x = cx, y = cy, speed_x = sx, speed_y = sy, mass = mass, index = index, force_x = 0, force_y = 0 }
 end
 
 task init_star(bodies : region(ispace(ptr), body), num : uint, max_radius : double, cx : double, cy : double, sx : double, sy : double, index: uint)
@@ -85,7 +78,7 @@ do
   var speed_x_star = sx + speed * sin(angle + cmath.M_PI / 2)
   var speed_y_star = sy + speed * cos(angle + cmath.M_PI / 2)
   var mass_star = 1.0 + drand48()
-  bodies[index] = { x = x_star, y = y_star, speed_x = speed_x_star, speed_y = speed_y_star, mass = mass_star, index = index }
+  bodies[index] = { x = x_star, y = y_star, speed_x = speed_x_star, speed_y = speed_y_star, mass = mass_star, index = index, force_x = 0, force_y = 0 }
 end
 
 task init_2_galaxies(bodies : region(body), conf : Config)
@@ -174,10 +167,10 @@ do
   end
 end
 
-task calculate_net_force(bodies : region(body), body_updates : region(body_update), quads : region(quad(wild)), index : uint, node : ptr(quad(wild), quads)): uint
+task calculate_net_force(bodies : region(body), quads : region(quad(wild)), node : ptr(quad(wild), quads), index: uint): uint
   where
   reads(bodies),
-  reduces +(body_updates.{force_x, force_y}),
+  reduces +(bodies.{force_x, force_y}),
   reads(quads)
 do
   -- c.printf("index %d", index)
@@ -191,10 +184,10 @@ do
 
   if node.type == 2 and node.size / dist >= theta then
     -- c.printf("threshold hit: %f dist: %f", node.size / dist, dist)
-    calculate_net_force(bodies, body_updates, quads, index, node.sw)
-    calculate_net_force(bodies, body_updates, quads, index, node.nw)
-    calculate_net_force(bodies, body_updates, quads, index, node.se)
-    calculate_net_force(bodies, body_updates, quads, index, node.ne)
+    calculate_net_force(bodies, quads, node.sw, index)
+    calculate_net_force(bodies, quads, node.nw, index)
+    calculate_net_force(bodies, quads, node.se, index)
+    calculate_net_force(bodies, quads, node.ne, index)
     return 1
   end
 
@@ -204,35 +197,33 @@ do
   var d_force_x = d_force * xn
   var d_force_y = d_force * yn
 
-  body_updates[index].force_x += d_force_x
-  body_updates[index].force_y += d_force_y
+  body.force_x += d_force_x
+  body.force_y += d_force_y
   return 1
 end
 
-task update_body_positions(bodies : region(body), body_updates : region(body_update), quads : region(quad(wild)))
+task update_body_positions(bodies : region(body), quads : region(quad(wild)))
   where
   reads(bodies),
-  reads(body_updates.{force_x, force_y}),
-  writes(body_updates.{x, y, speed_x, speed_y}),
-  reduces +(body_updates.{force_x, force_y}),
+  writes(bodies.{x, y, speed_x, speed_y}),
+  reduces +(bodies.{force_x, force_y}),
   reads(quads)
 do
   var root = dynamic_cast(ptr(quad(quads), quads), 0)
   for body in bodies do
-    calculate_net_force(bodies, body_updates, quads, body.index, root)
-    body_updates[body.index].x = body.x + body.speed_x * delta
-    body_updates[body.index].y = body.y + body.speed_y * delta
-    body_updates[body.index].speed_x = body.speed_x + body_updates[body.index].force_x / body.mass * delta
-    body_updates[body.index].speed_y = body.speed_y + body_updates[body.index].force_y / body.mass * delta
+    calculate_net_force(bodies, quads, root, body.index)
+    body.x = body.x + body.speed_x * delta
+    body.y = body.y + body.speed_y * delta
+    body.speed_x = body.speed_x + body.force_x / body.mass * delta
+    body.speed_y = body.speed_y + body.force_y / body.mass * delta
   end
 end
 
-task run_iteration(bodies : region(body), body_updates : region(body_update), body_index : ispace(ptr))
+task run_iteration(bodies : region(body), body_index : ispace(ptr))
   where
   reads(bodies),
-  reads(body_updates.{force_x, force_y}),
-  writes(body_updates.{x, y, speed_x, speed_y}),
-  reduces +(body_updates.{force_x, force_y})
+  writes(bodies.{x, y, speed_x, speed_y}),
+  reduces +(bodies.{force_x, force_y})
 do
   var boundaries_index = ispace(ptr, 1)
   var boundaries = region(boundaries_index, boundary) 
@@ -254,9 +245,8 @@ do
 
   build_quad(bodies, quads, boundaries[0].min_x + size / 2, boundaries[0].min_y + size / 2, size)
 
-  var body_updates_partition = partition(equal, body_updates, body_index)
   for i in body_index do
-    update_body_positions(bodies_partition[i], body_updates_partition[i], quads)
+    update_body_positions(bodies_partition[i], quads)
   end
 end
 
@@ -271,16 +261,14 @@ task main()
 
   var body_index = ispace(ptr, conf.num_bodies)
   var bodies = region(body_index, body)
-  var body_updates = region(body_index, body_update)
 
   init_2_galaxies(bodies, conf)
 
   print_bodies_initial(bodies)
 
   for i=0,conf.iterations do
-      fill(body_updates.{force_x, force_y}, 0)
-      run_iteration(bodies, body_updates, body_index)
-      copy(body_updates.{x, y, speed_x, speed_y}, bodies.{x, y, speed_x, speed_y})
+      fill(bodies.{force_x, force_y}, 0)
+      run_iteration(bodies, body_index)
       print_update(i, bodies)
   end
 end
