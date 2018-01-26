@@ -27,9 +27,12 @@ do
   var new_last_used = last_used
   if body.mass_x <= cur.center_x then
     if body.mass_y <= cur.center_y then
+      c.printf("sw\n")
       if isnull(cur.sw) then
+        c.printf("null\n")
         cur.sw = dynamic_cast(ptr(quad(quads), quads), last_used)
       elseif dynamic_cast(ptr(quad(quads), quads), cur.sw).type == 1 then
+        c.printf("creating fork at index %d\n", last_used + 1)
         var new_fork = dynamic_cast(ptr(quad(quads), quads), last_used + 1)
         new_fork.center_x = cur.center_x - half_size / 2
         new_fork.center_y = cur.center_y - half_size / 2
@@ -41,9 +44,12 @@ do
         new_last_used = add_node(quads, cur.sw, body, last_used)
       end
     else
+      c.printf("nw\n")
       if isnull(cur.nw) then
+        c.printf("null\n")
         cur.nw = dynamic_cast(ptr(quad(quads), quads), last_used)
       elseif dynamic_cast(ptr(quad(quads), quads), cur.nw).type == 1 then
+        c.printf("creating fork at index %d\n", last_used + 1)
         var new_fork = dynamic_cast(ptr(quad(quads), quads), last_used + 1)
         new_fork.center_x = cur.center_x - half_size / 2
         new_fork.center_y = cur.center_y + half_size / 2

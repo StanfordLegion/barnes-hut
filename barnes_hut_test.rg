@@ -15,6 +15,7 @@ task main()
   var body_quad = dynamic_cast(ptr(quad(quads), quads), 1)
   body_quad.mass_x = 0.5
   body_quad.mass_y = 1.5
+  body_quad.type = 1
   var index = add_node(quads, root, body_quad, 1)
   assert(index == 1, "test failed")
 
