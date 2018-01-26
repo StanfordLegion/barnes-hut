@@ -42,7 +42,6 @@ task main()
   index = add_node(quads, root, body_quad, index + 1)
   assert(index == 4, "third insert failed")
 
-  regentlib.c.printf("%f\n", root.mass_y)
   assert(root.total == 3, "root total failed")
   assert(root.mass == 4, "root mass failed")
   assert(double_equal(root.mass_x, 1.1), "root mass_x failed")
