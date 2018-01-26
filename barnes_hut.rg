@@ -14,7 +14,8 @@ rawset(_G, "drand48", std.drand48)
 rawset(_G, "srand48", std.srand48)
 
 local gee = 100
-local sector_precision = 16
+local delta = 0.1
+local theta = 0.5
 
 struct Config {
   num_bodies : uint,
@@ -58,7 +59,7 @@ end
 task init_black_hole(bodies : region(ispace(ptr), body), mass : uint, cx : double, cy : double, sx : double, sy : double, index: uint)
   where writes(bodies)
 do
-  bodies[index] = { x = cx, y = cy, x_speed = sx, y_speed = sy, mass = mass, index = index, sector = {x = 0, y = 0} }
+  bodies[index] = { x = cx, y = cy, x_speed = sx, y_speed = sy, mass = mass, index = index }
 end
 
 task init_star(bodies : region(ispace(ptr), body), num : uint, max_radius : double, cx : double, cy : double, sx : double, sy : double, index: uint)
@@ -75,7 +76,7 @@ do
   var x_speed_star = sx + speed * sin(angle + cmath.M_PI / 2)
   var y_speed_star = sy + speed * cos(angle + cmath.M_PI / 2)
   var mass_star = 1.0 + drand48()
-  bodies[index] = { x = x_star, y = y_star, x_speed = x_speed_star, y_speed = y_speed_star, mass = mass_star, index = index, sector = {x = 0, y = 0} }
+  bodies[index] = { x = x_star, y = y_star, x_speed = x_speed_star, y_speed = y_speed_star, mass = mass_star, index = index }
 end
 
 task init_2_galaxies(bodies : region(body), conf : Config)
@@ -110,6 +111,16 @@ do
   for body in bodies do
     c.printf("%d: x: %f, y: %f, x_speed: %f, y_speed: %f, mass: %f\n",
     body.index, body.x, body.y, body.x_speed, body.y_speed, body.mass) 
+  end
+  c.printf("\n") 
+end
+
+task print_update(bodies : region(body))
+  where reads(bodies)
+do
+  for body in bodies do
+    c.printf("%d: x: %f, y: %f, x_speed: %f, y_speed: %f\n",
+    body.index, body.x, body.y, body.x_speed, body.y_speed) 
   end
   c.printf("\n") 
 end
@@ -153,6 +164,48 @@ do
   end
 end
 
+task calculate_net_force(bodies: region(body), quads: region(quad(wild)), index: uint, node: ptr(quad(wild), quads), current_force: int2d): int2d
+  where
+  reads(bodies),
+  reads(quads)
+do
+  if node.type == 1 and node.index == index then
+    return current_force
+  end
+
+  var body = bodies[index]
+  var dist = sqrt((body.x - node.mass_x) * (body.x - node.mass_x) + (body.y - node.mass_y) * (body.y - node.mass_y))
+
+  if node.type == 2 and node.size / dist >= theta then
+    var to_return = calculate_net_force(bodies, quads, index, node.sw, current_force)
+    to_return = calculate_net_force(bodies, quads, index, node.nw, to_return)
+    to_return = calculate_net_force(bodies, quads, index, node.se, to_return)
+    return calculate_net_force(bodies, quads, index, node.ne, to_return)
+  end
+
+  var d_force = gee * body.mass * node.mass / (dist * dist)
+  var xn = (node.mass_x - body.x) / dist
+  var yn = (node.mass_y - body.y) / dist
+  var d_force_x = d_force * xn
+  var d_force_y = d_force * yn
+
+  var new_force: int2d = { x = current_force.x + d_force_x, y = current_force.y + d_force_y }
+  return new_force
+end
+
+task update_body_positions(bodies: region(body), new_bodies: region(body), quads: region(quad(wild)))
+  where
+  reads(bodies),
+  writes(new_bodies),
+  reads(quads)
+do
+  var root = dynamic_cast(ptr(quad(quads), quads), 0)
+  for body in bodies do
+    var net_force = calculate_net_force(bodies, quads, body.index, root, { x = 0, y = 0 })
+    new_bodies[body.index] = { x = body.x + body.x_speed * delta, y = body.y + body.y_speed * delta, x_speed = body.x_speed + net_force.x / body.mass * delta, y_speed = body.y_speed + net_force.y / body.mass * delta, mass = body.mass, index = body.index } 
+  end
+end
+
 task run_iteration(bodies : region(body), new_bodies : region(body), body_index : ispace(ptr))
   where
   reads(bodies),
@@ -177,6 +230,11 @@ do
   fill(quads.{nw, sw, ne, se}, null(ptr(quad(quads), quads)))
 
   build_quad(bodies, quads, boundaries[0].min_x + size / 2, boundaries[0].min_y + size / 2, size)
+
+  var new_bodies_partition = partition(equal, new_bodies, body_index)
+  for i in body_index do
+    update_body_positions(bodies_partition[i], new_bodies_partition[i], quads)
+  end
 end
 
 task main()
@@ -199,7 +257,8 @@ task main()
   for i=0,conf.iterations do
       c.printf("Iteration %d\n", i)
       run_iteration(bodies, new_bodies, body_index)
-      -- copy(new_bodies, bodies)
+      copy(new_bodies, bodies)
+      print_update(bodies)
   end
   
 end
