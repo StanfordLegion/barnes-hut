@@ -173,9 +173,7 @@ task calculate_net_force(bodies : region(body), quads : region(quad(wild)), node
   reduces +(bodies.{force_x, force_y}),
   reads(quads)
 do
-  -- c.printf("index %d", index)
   if node.type == 1 and node.index == index then
-    -- c.printf("nope", index)
     return 1
   end
 
@@ -183,7 +181,6 @@ do
   var dist = sqrt((body.x - node.mass_x) * (body.x - node.mass_x) + (body.y - node.mass_y) * (body.y - node.mass_y))
 
   if node.type == 2 and node.size / dist >= theta then
-    -- c.printf("threshold hit: %f dist: %f", node.size / dist, dist)
     calculate_net_force(bodies, quads, node.sw, index)
     calculate_net_force(bodies, quads, node.nw, index)
     calculate_net_force(bodies, quads, node.se, index)
