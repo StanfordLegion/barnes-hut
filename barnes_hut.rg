@@ -205,8 +205,7 @@ end
 task update_body_positions(bodies : region(body), quads : region(quad(wild)))
   where
   reads(bodies),
-  writes(bodies.{x, y, speed_x, speed_y}),
-  reduces +(bodies.{force_x, force_y}),
+  writes(bodies),
   reads(quads)
 do
   var root = dynamic_cast(ptr(quad(quads), quads), 0)
@@ -222,8 +221,7 @@ end
 task run_iteration(bodies : region(body), body_index : ispace(ptr))
   where
   reads(bodies),
-  writes(bodies.{x, y, speed_x, speed_y}),
-  reduces +(bodies.{force_x, force_y})
+  writes(bodies)
 do
   var boundaries_index = ispace(ptr, 1)
   var boundaries = region(boundaries_index, boundary) 
@@ -240,7 +238,7 @@ do
   var size_y = boundaries[0].max_y - boundaries[0].min_y
   var size = max(size_x, size_y)
 
-  var quads = region(ispace(ptr, 1000000), quad(quads))
+  var quads = region(ispace(ptr, 100000), quad(quads))
   fill(quads.{nw, sw, ne, se}, null(ptr(quad(quads), quads)))
 
   build_quad(bodies, quads, boundaries[0].min_x + size / 2, boundaries[0].min_y + size / 2, size)
@@ -252,9 +250,9 @@ end
 
 task main()
   var conf : Config
-  conf.num_bodies = 16
+  conf.num_bodies = 32
   conf.random_seed = 213
-  conf.iterations = 1
+  conf.iterations = 10
 
   conf = parse_input_args(conf)
   c.printf("settings: bodies=%d seed=%d\n\n", conf.num_bodies, conf.random_seed) 
