@@ -20,25 +20,17 @@ local theta = 0.5
 struct Config {
   num_bodies : uint,
   random_seed : uint,
-  iterations: uint
+  iterations : uint,
+  verbose : bool
 }
 
 fspace body {
-  x: double,
-  y: double,
-  speed_x: double,
-  speed_y: double,
-  mass: double,
-  index: uint,
-  force_x: double,
-  force_y: double
+  {x, y, speed_x, speed_y, mass, force_x, force_y} : double,
+  index : uint
 }
 
 fspace boundary {
-  min_x: double,
-  min_y: double,
-  max_x: double,
-  max_y: double
+  {min_x, min_y, max_x, max_y} : double
 }
 
 terra parse_input_args(conf : Config)
@@ -53,6 +45,8 @@ terra parse_input_args(conf : Config)
     elseif cstring.strcmp(args.argv[i], "-i") == 0 then
       i = i + 1
       conf.iterations = std.atoi(args.argv[i])
+    elseif cstring.strcmp(args.argv[i], "-v") == 0 then
+      conf.verbose = true
     end
   end
   return conf
@@ -61,7 +55,14 @@ end
 task init_black_hole(bodies : region(ispace(ptr), body), mass : uint, cx : double, cy : double, sx : double, sy : double, index: uint)
   where writes(bodies)
 do
-  bodies[index] = { x = cx, y = cy, speed_x = sx, speed_y = sy, mass = mass, index = index, force_x = 0, force_y = 0 }
+  for body in bodies do
+    body.x = cx
+    body.y = cy
+    body.speed_x = sx
+    body.speed_y = sy
+    body.mass = mass
+    body.index = index
+  end
 end
 
 task init_star(bodies : region(ispace(ptr), body), num : uint, max_radius : double, cx : double, cy : double, sx : double, sy : double, index: uint)
@@ -78,7 +79,15 @@ do
   var speed_x_star = sx + speed * sin(angle + cmath.M_PI / 2)
   var speed_y_star = sy + speed * cos(angle + cmath.M_PI / 2)
   var mass_star = 1.0 + drand48()
-  bodies[index] = { x = x_star, y = y_star, speed_x = speed_x_star, speed_y = speed_y_star, mass = mass_star, index = index, force_x = 0, force_y = 0 }
+
+  for body in bodies do
+    body.x = x_star
+    body.y = y_star
+    body.speed_x = speed_x_star
+    body.speed_y = speed_y_star
+    body.mass = mass_star
+    body.index = index
+  end
 end
 
 task init_2_galaxies(bodies : region(body), conf : Config)
@@ -103,7 +112,6 @@ do
   for i = num1 + 1, num1 + num2 do
     init_star(bodies_partition[i], num2, 350, -1800, -1200, 0, 0, i)
   end
-
 end
 
 task print_bodies_initial(bodies : region(body))
@@ -215,7 +223,7 @@ do
   end
 end
 
-task run_iteration(bodies : region(body), body_index : ispace(ptr))
+task run_iteration(bodies : region(body), body_index : ispace(ptr), verbose: bool)
   where
   reads(bodies),
   writes(bodies)
@@ -229,7 +237,9 @@ do
     update_boundaries(bodies_partition[i], boundaries)
   end
 
-  c.printf("boundaries: min_x=%f min_y=%f max_x=%f max_y=%f\n\n", boundaries[0].min_x, boundaries[0].min_y, boundaries[0].max_x, boundaries[0].max_y)
+  if verbose then
+    c.printf("boundaries: min_x=%f min_y=%f max_x=%f max_y=%f\n\n", boundaries[0].min_x, boundaries[0].min_y, boundaries[0].max_x, boundaries[0].max_y)
+  end
 
   var size_x = boundaries[0].max_x - boundaries[0].min_x
   var size_y = boundaries[0].max_y - boundaries[0].min_y
@@ -252,19 +262,27 @@ task main()
   conf.iterations = 10
 
   conf = parse_input_args(conf)
-  c.printf("settings: bodies=%d seed=%d\n\n", conf.num_bodies, conf.random_seed) 
+
+  if conf.verbose then
+    c.printf("settings: bodies=%d seed=%d\n\n", conf.num_bodies, conf.random_seed)
+  end
 
   var body_index = ispace(ptr, conf.num_bodies)
   var bodies = region(body_index, body)
 
   init_2_galaxies(bodies, conf)
 
-  print_bodies_initial(bodies)
+  if conf.verbose then
+    print_bodies_initial(bodies)
+  end
 
   for i=0,conf.iterations do
       fill(bodies.{force_x, force_y}, 0)
-      run_iteration(bodies, body_index)
-      print_update(i, bodies)
+      run_iteration(bodies, body_index, conf.verbose)
+
+      if conf.verbose then
+        print_update(i, bodies)
+      end
   end
 end
 regentlib.start(main)
