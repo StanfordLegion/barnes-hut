@@ -10,6 +10,8 @@ local cmath = terralib.includec("math.h")
 local cstring = terralib.includec("string.h")
 local std = terralib.includec("stdlib.h")
 
+local BarnesHitIO = require("barnes_hut_io")
+
 rawset(_G, "drand48", std.drand48)
 rawset(_G, "srand48", std.srand48)
 
@@ -21,11 +23,13 @@ struct Config {
   num_bodies : uint,
   random_seed : uint,
   iterations : uint,
-  verbose : bool
+  verbose : bool,
+  output_dir : rawstring,
+  output_dir_set : bool
 }
 
 fspace body {
-  {x, y, speed_x, speed_y, mass, force_x, force_y} : double,
+  {mass_x, mass_y, speed_x, speed_y, mass, force_x, force_y} : double,
   index : uint
 }
 
@@ -36,7 +40,11 @@ fspace boundary {
 terra parse_input_args(conf : Config)
   var args = c.legion_runtime_get_input_args()
   for i = 0, args.argc do
-    if cstring.strcmp(args.argv[i], "-b") == 0 then
+    if cstring.strcmp(args.argv[i], "-o") == 0 then
+      i = i + 1
+      conf.output_dir = args.argv[i]
+      conf.output_dir_set = true
+    elseif cstring.strcmp(args.argv[i], "-b") == 0 then
       i = i + 1
       conf.num_bodies = std.atoi(args.argv[i])
     elseif cstring.strcmp(args.argv[i], "-s") == 0 then
@@ -56,8 +64,8 @@ task init_black_hole(bodies : region(ispace(ptr), body), mass : uint, cx : doubl
   where writes(bodies)
 do
   for body in bodies do
-    body.x = cx
-    body.y = cy
+    body.mass_x = cx
+    body.mass_y = cy
     body.speed_x = sx
     body.speed_y = sy
     body.mass = mass
@@ -81,8 +89,8 @@ do
   var mass_star = 1.0 + drand48()
 
   for body in bodies do
-    body.x = x_star
-    body.y = y_star
+    body.mass_x = x_star
+    body.mass_y = y_star
     body.speed_x = speed_x_star
     body.speed_y = speed_y_star
     body.mass = mass_star
@@ -120,7 +128,7 @@ do
   c.printf("Initial bodies:\n") 
   for body in bodies do
     c.printf("%d: x: %f, y: %f, speed_x: %f, speed_y: %f, mass: %f\n",
-    body.index, body.x, body.y, body.speed_x, body.speed_y, body.mass) 
+    body.index, body.mass_x, body.mass_y, body.speed_x, body.speed_y, body.mass)
   end
   c.printf("\n") 
 end
@@ -131,29 +139,29 @@ do
   c.printf("Iteration %d\n", iteration + 1)
   for body in bodies do
     c.printf("%d: x: %f, y: %f, speed_x: %f, speed_y: %f\n",
-    body.index, body.x, body.y, body.speed_x, body.speed_y) 
+    body.index, body.mass_x, body.mass_y, body.speed_x, body.speed_y)
   end
   c.printf("\n") 
 end
 
 task update_boundaries(bodies : region(body), boundaries : region(boundary))
   where
-  reads(bodies.{x, y}),
+  reads(bodies.{mass_x, mass_y}),
   reads(boundaries),
   reduces min(boundaries.{min_x, min_y}),
   reduces max(boundaries.{max_x, max_y})
 do
   for body in bodies do
-    boundaries[0].min_x min = min(body.x, boundaries[0].min_x)
-    boundaries[0].min_y min = min(body.y, boundaries[0].min_y)
-    boundaries[0].max_x max = max(body.x, boundaries[0].max_x)
-    boundaries[0].max_y max = max(body.y, boundaries[0].max_y)
+    boundaries[0].min_x min = min(body.mass_x, boundaries[0].min_x)
+    boundaries[0].min_y min = min(body.mass_y, boundaries[0].min_y)
+    boundaries[0].max_x max = max(body.mass_x, boundaries[0].max_x)
+    boundaries[0].max_y max = max(body.mass_y, boundaries[0].max_y)
   end
 end
 
 task build_quad(bodies : region(body), quads : region(quad(wild)), center_x : double, center_y : double, size : double)
   where
-  reads(bodies.{x, y, mass, index}),
+  reads(bodies.{mass_x, mass_y, mass, index}),
   writes(quads),
   reads(quads)
 do
@@ -165,8 +173,8 @@ do
   var index = 1
   for body in bodies do
     var body_quad = dynamic_cast(ptr(quad(quads), quads), index)
-    body_quad.mass_x = body.x
-    body_quad.mass_y = body.y
+    body_quad.mass_x = body.mass_x
+    body_quad.mass_y = body.mass_y
     body_quad.mass = body.mass
     body_quad.total = 1 
     body_quad.type = 1
@@ -175,35 +183,34 @@ do
   end
 end
 
-task calculate_net_force(bodies : region(body), quads : region(quad(wild)), node : ptr(quad(wild), quads), index: uint): uint
+task calculate_net_force(bodies : region(body), quads : region(quad(wild)), node : ptr(quad(wild), quads), body_ptr : ptr(body, bodies)): uint
   where
   reads(bodies),
   reduces +(bodies.{force_x, force_y}),
   reads(quads)
 do
-  if node.type == 1 and node.index == index then
+  if node.type == 1 and node.index == body_ptr.index then
     return 1
   end
 
-  var body = bodies[index]
-  var dist = sqrt((body.x - node.mass_x) * (body.x - node.mass_x) + (body.y - node.mass_y) * (body.y - node.mass_y))
+  var dist = sqrt((body_ptr.mass_x - node.mass_x) * (body_ptr.mass_x - node.mass_x) + (body_ptr.mass_y - node.mass_y) * (body_ptr.mass_y - node.mass_y))
 
   if node.type == 2 and node.size / dist >= theta then
-    calculate_net_force(bodies, quads, node.sw, index)
-    calculate_net_force(bodies, quads, node.nw, index)
-    calculate_net_force(bodies, quads, node.se, index)
-    calculate_net_force(bodies, quads, node.ne, index)
+    calculate_net_force(bodies, quads, node.sw, body_ptr)
+    calculate_net_force(bodies, quads, node.nw, body_ptr)
+    calculate_net_force(bodies, quads, node.se, body_ptr)
+    calculate_net_force(bodies, quads, node.ne, body_ptr)
     return 1
   end
 
-  var d_force = gee * body.mass * node.mass / (dist * dist)
-  var xn = (node.mass_x - body.x) / dist
-  var yn = (node.mass_y - body.y) / dist
+  var d_force = gee * body_ptr.mass * node.mass / (dist * dist)
+  var xn = (node.mass_x - body_ptr.mass_x) / dist
+  var yn = (node.mass_y - body_ptr.mass_y) / dist
   var d_force_x = d_force * xn
   var d_force_y = d_force * yn
 
-  body.force_x += d_force_x
-  body.force_y += d_force_y
+  body_ptr.force_x += d_force_x
+  body_ptr.force_y += d_force_y
   return 1
 end
 
@@ -215,30 +222,26 @@ task update_body_positions(bodies : region(body), quads : region(quad(wild)))
 do
   var root = dynamic_cast(ptr(quad(quads), quads), 0)
   for body in bodies do
-    calculate_net_force(bodies, quads, root, body.index)
-    body.x = body.x + body.speed_x * delta
-    body.y = body.y + body.speed_y * delta
+    calculate_net_force(bodies, quads, root, body)
+    body.mass_x = body.mass_x + body.speed_x * delta
+    body.mass_y = body.mass_y + body.speed_y * delta
     body.speed_x = body.speed_x + body.force_x / body.mass * delta
     body.speed_y = body.speed_y + body.force_y / body.mass * delta
   end
 end
 
-task run_iteration(bodies : region(body), body_index : ispace(ptr), verbose: bool)
+task run_iteration(bodies : region(body), body_index : ispace(ptr), boundaries : region(boundary))
   where
   reads(bodies),
-  writes(bodies)
+  writes(bodies),
+  reads(boundaries),
+  writes(boundaries)
 do
-  var boundaries_index = ispace(ptr, 1)
-  var boundaries = region(boundaries_index, boundary) 
-  boundaries[0] = { min_x = bodies[0].x, min_y = bodies[0].y, max_x = bodies[0].x, max_y = bodies[0].y }
+  boundaries[0] = { min_x = bodies[0].mass_x, min_y = bodies[0].mass_y, max_x = bodies[0].mass_x, max_y = bodies[0].mass_y }
   
   var bodies_partition = partition(equal, bodies, body_index)
   for i in body_index do
     update_boundaries(bodies_partition[i], boundaries)
-  end
-
-  if verbose then
-    c.printf("boundaries: min_x=%f min_y=%f max_x=%f max_y=%f\n\n", boundaries[0].min_x, boundaries[0].min_y, boundaries[0].max_x, boundaries[0].max_y)
   end
 
   var size_x = boundaries[0].max_x - boundaries[0].min_x
@@ -257,14 +260,20 @@ end
 
 task main()
   var conf : Config
-  conf.num_bodies = 32
+  conf.num_bodies = 64
   conf.random_seed = 213
   conf.iterations = 10
+  conf.output_dir_set = false
 
   conf = parse_input_args(conf)
-
+  
+  if conf.output_dir_set ~= true then
+    c.printf("output dir must be specified\n")
+    c.exit(-1)
+  end
+  
   if conf.verbose then
-    c.printf("settings: bodies=%d seed=%d\n\n", conf.num_bodies, conf.random_seed)
+    c.printf("settings: output dir=%s bodies=%d seed=%d\n\n", conf.output_dir, conf.num_bodies, conf.random_seed)
   end
 
   var body_index = ispace(ptr, conf.num_bodies)
@@ -277,12 +286,31 @@ task main()
   end
 
   for i=0,conf.iterations do
+      var boundaries = region(ispace(ptr, 1), boundary)
       fill(bodies.{force_x, force_y}, 0)
-      run_iteration(bodies, body_index, conf.verbose)
+      run_iteration(bodies, body_index, boundaries)
 
+      var boundary = boundaries[0]
       if conf.verbose then
+        c.printf("boundaries: min_x=%f min_y=%f max_x=%f max_y=%f\n\n", boundary.min_x, boundary.min_y, boundary.max_x, boundary.max_y)
         print_update(i, bodies)
       end
+
+      var io : BarnesHitIO
+      var fp = io:open(i, conf.output_dir)
+      c.fprintf(fp, "<svg viewBox=\"0 0 800 800\" xmlns=\"http://www.w3.org/2000/svg\">")
+
+      var size_x = boundary.max_x - boundary.min_x
+      var size_y = boundary.max_y - boundary.min_y
+      var size = max(size_x, size_y)
+      var scale = 800.0 / size
+
+      for body in bodies do
+        c.fprintf(fp, "<circle cx=\"%f\" cy=\"%f\" r=\"10\"/>", (body.mass_x - boundary.min_x) * scale,  (body.mass_y - boundary.min_y) * scale)
+      end
+
+      c.fprintf(fp, "</svg>")
+      c.fclose(fp)
   end
 end
 regentlib.start(main)
