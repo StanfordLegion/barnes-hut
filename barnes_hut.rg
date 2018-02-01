@@ -30,7 +30,7 @@ struct Config {
 
 fspace body {
   {mass_x, mass_y, speed_x, speed_y, mass, force_x, force_y} : double,
-  index : uint
+  {color, index} : uint
 }
 
 fspace boundary {
@@ -60,7 +60,7 @@ terra parse_input_args(conf : Config)
   return conf
 end
 
-task init_black_hole(bodies : region(ispace(ptr), body), mass : uint, cx : double, cy : double, sx : double, sy : double, index: uint)
+task init_black_hole(bodies : region(ispace(ptr), body), mass : uint, cx : double, cy : double, sx : double, sy : double, color : uint, index : uint)
   where writes(bodies)
 do
   for body in bodies do
@@ -69,11 +69,12 @@ do
     body.speed_x = sx
     body.speed_y = sy
     body.mass = mass
+    body.color = color
     body.index = index
   end
 end
 
-task init_star(bodies : region(ispace(ptr), body), num : uint, max_radius : double, cx : double, cy : double, sx : double, sy : double, index: uint)
+task init_star(bodies : region(ispace(ptr), body), num : uint, max_radius : double, cx : double, cy : double, sx : double, sy : double, color : uint, index : uint)
   where writes(bodies)
 do
   var total_m = 1.5 * num
@@ -94,6 +95,7 @@ do
     body.speed_x = speed_x_star
     body.speed_y = speed_y_star
     body.mass = mass_star
+    body.color = color
     body.index = index
   end
 end
@@ -106,19 +108,19 @@ do
   var bodies_partition = partition(equal, bodies, ispace(ptr, conf.num_bodies))
 
   var num1 = conf.num_bodies / 8
-  init_black_hole(bodies_partition[0], num1, 0, 0, 0, 0, 0)
+  init_black_hole(bodies_partition[0], num1, 0, 0, 0, 0, 0, 0)
   
   __demand(__parallel)
   for i = 1, num1 do
-    init_star(bodies_partition[i], num1, 300, 0, 0, 0, 0, i)
+    init_star(bodies_partition[i], num1, 300, 0, 0, 0, 0, 1, i)
   end
 
   var num2 = conf.num_bodies / 8 * 7
-  init_black_hole(bodies_partition[num1], num2, -1800, -1200, 0, 0, num1)
+  init_black_hole(bodies_partition[num1], num2, -1800, -1200, 0, 0, 0, num1)
   
   __demand(__parallel)
   for i = num1 + 1, num1 + num2 do
-    init_star(bodies_partition[i], num2, 350, -1800, -1200, 0, 0, i)
+    init_star(bodies_partition[i], num2, 350, -1800, -1200, 0, 0, 2, i)
   end
 end
 
@@ -260,7 +262,7 @@ end
 
 task main()
   var conf : Config
-  conf.num_bodies = 64
+  conf.num_bodies = 128
   conf.random_seed = 213
   conf.iterations = 10
   conf.output_dir_set = false
@@ -298,7 +300,7 @@ task main()
 
       var io : BarnesHitIO
       var fp = io:open(i, conf.output_dir)
-      c.fprintf(fp, "<svg viewBox=\"0 0 800 800\" xmlns=\"http://www.w3.org/2000/svg\">")
+      c.fprintf(fp, "<svg viewBox=\"0 0 850 850\" xmlns=\"http://www.w3.org/2000/svg\">")
 
       var size_x = boundary.max_x - boundary.min_x
       var size_y = boundary.max_y - boundary.min_y
@@ -306,7 +308,13 @@ task main()
       var scale = 800.0 / size
 
       for body in bodies do
-        c.fprintf(fp, "<circle cx=\"%f\" cy=\"%f\" r=\"10\"/>", (body.mass_x - boundary.min_x) * scale,  (body.mass_y - boundary.min_y) * scale)
+        var color = "black"
+        if body.color == 1 then
+          color = "blue"
+        elseif body.color == 2 then
+          color = "orange"
+        end
+        c.fprintf(fp, "<circle cx=\"%f\" cy=\"%f\" r=\"10\" fill=\"%s\" />", (body.mass_x - boundary.min_x) * scale + 25,  (body.mass_y - boundary.min_y) * scale + 25, color)
       end
 
       c.fprintf(fp, "</svg>")
