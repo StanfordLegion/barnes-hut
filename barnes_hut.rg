@@ -299,8 +299,7 @@ task main()
         print_update(i, bodies)
       end
 
-      var io : BarnesHitIO
-      var fp = io:open(i, conf.output_dir)
+      var fp = open(i, conf.output_dir)
       c.fprintf(fp, "<svg viewBox=\"0 0 850 850\" xmlns=\"http://www.w3.org/2000/svg\">")
 
       var size_x = boundary.max_x - boundary.min_x

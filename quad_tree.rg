@@ -16,7 +16,7 @@ fspace quad(r : region(quad(wild))) {
   sw: ptr(quad(wild), r)
 }
 
-task add_node(quads : region(quad(wild)), parent: ptr(quad(wild), quads), child: ptr(quad(wild), quads), last_used: uint): uint
+task add_node(quads : region(quad(wild)), parent : ptr(quad(wild), quads), child : ptr(quad(wild), quads), last_used : uint): uint
 where
   reads(quads),
   writes(quads)
