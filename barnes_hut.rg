@@ -1,5 +1,5 @@
 import "regent"
-require("barnes_hut_common")
+require("quad_tree")
 
 local c = regentlib.c
 local cos = regentlib.cos(float)
@@ -11,6 +11,7 @@ local cstring = terralib.includec("string.h")
 local std = terralib.includec("stdlib.h")
 
 local BarnesHitIO = require("barnes_hut_io")
+local QuadTreeSizer = require("quad_tree_sizer")
 
 rawset(_G, "drand48", std.drand48)
 rawset(_G, "srand48", std.srand48)

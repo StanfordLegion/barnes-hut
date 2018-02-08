@@ -1,5 +1,5 @@
 import "regent"
-require("barnes_hut_common")
+require("quad_tree")
 
 local assert = regentlib.assert
 
