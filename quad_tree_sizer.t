@@ -25,19 +25,24 @@ terra create_placeholder(): quad_placeholder
 end
 
 terra add_placeholder(parent: quad_placeholder, child: quad_placeholder): quad_placeholder
+  regentlib.c.printf("parent: %f, %f, %f, child: %f, %f, size: %d\n", parent.center_x, parent.center_y, parent.size, child.mass_x, child.mass_y, parent.num_elements)
   var half_size = parent.size / 2
   if child.mass_x <= parent.center_x then
     if child.mass_y <= parent.center_y then
       if parent.sw == nil then
+        regentlib.c.printf("null sw\n")
         parent.sw = &child
         parent.num_elements = parent.num_elements + 1
       elseif parent.sw.type == 1 then
+        regentlib.c.printf("body sw\n")
         var new_fork = create_placeholder()
         new_fork.type = 2
         new_fork.center_x = parent.center_x - half_size / 2
         new_fork.center_y = parent.center_y - half_size / 2
         new_fork.size = half_size
+        regentlib.c.printf("inserting first\n")
         new_fork = add_placeholder(new_fork, @parent.sw)
+        regentlib.c.printf("inserting second\n")
         new_fork = add_placeholder(new_fork, child)
         parent.sw = &new_fork
         parent.num_elements = parent.num_elements + new_fork.num_elements - 1 
@@ -50,15 +55,19 @@ terra add_placeholder(parent: quad_placeholder, child: quad_placeholder): quad_p
       end
     else
       if parent.nw == nil then
+        regentlib.c.printf("null nw\n")
         parent.nw = &child
         parent.num_elements = parent.num_elements + 1
       elseif parent.nw.type == 1 then
+        regentlib.c.printf("body nw\n")
         var new_fork = create_placeholder()
         new_fork.type = 2
         new_fork.center_x = parent.center_x - half_size / 2
         new_fork.center_y = parent.center_y + half_size / 2
         new_fork.size = half_size
+        regentlib.c.printf("inserting first\n")
         new_fork = add_placeholder(new_fork, @parent.nw)
+        regentlib.c.printf("inserting second\n")
         new_fork = add_placeholder(new_fork, child)
         parent.nw = &new_fork
         parent.num_elements = parent.num_elements + new_fork.num_elements - 1 
@@ -73,15 +82,19 @@ terra add_placeholder(parent: quad_placeholder, child: quad_placeholder): quad_p
   else
     if child.mass_y <= parent.center_y then
       if parent.se == nil then
+        regentlib.c.printf("null se\n")
         parent.se = &child
         parent.num_elements = parent.num_elements + 1
       elseif parent.se.type == 1 then
+        regentlib.c.printf("body se\n")
         var new_fork = create_placeholder()
         new_fork.type = 2
         new_fork.center_x = parent.center_x + half_size / 2
         new_fork.center_y = parent.center_y - half_size / 2
         new_fork.size = half_size
+        regentlib.c.printf("inserting first\n")
         new_fork = add_placeholder(new_fork, @parent.se)
+        regentlib.c.printf("inserting second\n")
         new_fork = add_placeholder(new_fork, child)
         parent.se = &new_fork
         parent.num_elements = parent.num_elements + new_fork.num_elements - 1 
@@ -94,15 +107,19 @@ terra add_placeholder(parent: quad_placeholder, child: quad_placeholder): quad_p
       end
     else
       if parent.ne == nil then
+        regentlib.c.printf("null ne\n")
         parent.ne = &child
         parent.num_elements = parent.num_elements + 1
       elseif parent.ne.type == 1 then
+        regentlib.c.printf("body ne %f %f\n", parent.ne.mass_x, parent.ne.mass_y)
         var new_fork = create_placeholder()
         new_fork.type = 2
         new_fork.center_x = parent.center_x + half_size / 2
-        new_fork.center_y = parent.center_x + half_size / 2
+        new_fork.center_y = parent.center_y + half_size / 2
         new_fork.size = half_size
+        regentlib.c.printf("inserting first\n")
         new_fork = add_placeholder(new_fork, @parent.ne)
+        regentlib.c.printf("inserting second\n")
         new_fork = add_placeholder(new_fork, child)
         parent.ne = &new_fork
         parent.num_elements = parent.num_elements + new_fork.num_elements - 1 

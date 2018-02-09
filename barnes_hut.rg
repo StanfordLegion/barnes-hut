@@ -162,6 +162,26 @@ do
   end
 end
 
+task size_quad(bodies : region(body), center_x : double, center_y : double, size : double): uint
+  where reads(bodies.{mass_x, mass_y})
+do
+  var root = create_placeholder()
+  root.center_x = center_x
+  root.center_y = center_y
+  root.size = size
+  root.type = 2
+
+  for body in bodies do
+    var body_quad = create_placeholder()
+    body_quad.mass_x = body.mass_x
+    body_quad.mass_y = body.mass_y
+    body_quad.type = 1
+    root = add_placeholder(root, body_quad)
+  end
+
+  return root.num_elements
+end
+
 task build_quad(bodies : region(body), quads : region(quad(wild)), center_x : double, center_y : double, size : double)
   where
   reads(bodies.{mass_x, mass_y, mass, index}),
@@ -233,7 +253,7 @@ do
   end
 end
 
-task run_iteration(bodies : region(body), body_index : ispace(ptr), boundaries : region(boundary))
+task run_iteration(bodies : region(body), body_index : ispace(ptr), boundaries : region(boundary), verbose: bool)
   where
   reads(bodies),
   writes(bodies),
@@ -250,11 +270,21 @@ do
   var size_x = boundaries[0].max_x - boundaries[0].min_x
   var size_y = boundaries[0].max_y - boundaries[0].min_y
   var size = max(size_x, size_y)
+  var center_x = boundaries[0].min_x + size / 2
+  var center_y = boundaries[0].min_y + size / 2
 
-  var quads = region(ispace(ptr, 100000), quad(quads))
+  if verbose then
+    c.printf("Calculating required size of quad tree\n")
+  end
+  var quad_size = size_quad(bodies, center_x, center_y, size)
+  if verbose then
+    c.printf("Quad tree size: %d", quad_size)
+  end
+
+  var quads = region(ispace(ptr, quad_size), quad(quads))
   fill(quads.{nw, sw, ne, se}, null(ptr(quad(quads), quads)))
 
-  build_quad(bodies, quads, boundaries[0].min_x + size / 2, boundaries[0].min_y + size / 2, size)
+  build_quad(bodies, quads, center_x, center_y, size)
 
   for i in body_index do
     update_body_positions(bodies_partition[i], quads)
@@ -291,7 +321,7 @@ task main()
   for i=0,conf.iterations do
       var boundaries = region(ispace(ptr, 1), boundary)
       fill(bodies.{force_x, force_y}, 0)
-      run_iteration(bodies, body_index, boundaries)
+      run_iteration(bodies, body_index, boundaries, conf.verbose)
 
       var boundary = boundaries[0]
       if conf.verbose then

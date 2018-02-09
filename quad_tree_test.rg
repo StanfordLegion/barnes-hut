@@ -32,6 +32,22 @@ task test_quad_sizer()
 
   root = add_placeholder(root, body_quad)
   assert(root.num_elements == 4, "second insert failed")
+
+  body_quad = create_placeholder()
+  body_quad.mass_x = 1.8
+  body_quad.mass_y = 0.8
+  body_quad.type = 1
+
+  root = add_placeholder(root, body_quad)
+  assert(root.num_elements == 5, "second insert failed")
+
+  body_quad = create_placeholder()
+  body_quad.mass_x = 0.2
+  body_quad.mass_y = 1.8
+  body_quad.type = 1
+
+  root = add_placeholder(root, body_quad)
+  assert(root.num_elements == 7, "second insert failed")
 end
 
 task test_quad_tree()

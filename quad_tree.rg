@@ -78,7 +78,7 @@ do
         var new_fork = dynamic_cast(ptr(quad(quads), quads), last_used + 1)
         new_fork.type = 2
         new_fork.center_x = parent.center_x + half_size / 2
-        new_fork.center_y = parent.center_x + half_size / 2
+        new_fork.center_y = parent.center_y + half_size / 2
         new_fork.size = half_size
         new_last_used = add_node(quads, new_fork, dynamic_cast(ptr(quad(quads), quads), parent.ne), last_used + 1)
         new_last_used = add_node(quads, new_fork, child, new_last_used)
