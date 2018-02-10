@@ -13,6 +13,7 @@ where
   reads(quads),
   writes(quads)
 do
+  regentlib.c.printf("entered %d\n", last_used)
   var half_size = parent.size / 2
   var new_last_used = last_used
   if child.mass_x <= parent.center_x then
@@ -21,6 +22,7 @@ do
         parent.sw = child
       elseif dynamic_cast(ptr(quad(quads), quads), parent.sw).type == 1 then
         var new_fork = dynamic_cast(ptr(quad(quads), quads), last_used + 1)
+        regentlib.c.printf("allocating %d\n", last_used + 1)
         assert(new_fork.type == 0, "region already allocated")
         new_fork.type = 2
         new_fork.center_x = parent.center_x - half_size / 2
@@ -37,6 +39,7 @@ do
         parent.nw = child
       elseif dynamic_cast(ptr(quad(quads), quads), parent.nw).type == 1 then
         var new_fork = dynamic_cast(ptr(quad(quads), quads), last_used + 1)
+        regentlib.c.printf("allocating %d\n", last_used + 1)
         assert(new_fork.type == 0, "region already allocated")
         new_fork.type = 2
         new_fork.center_x = parent.center_x - half_size / 2
@@ -55,6 +58,7 @@ do
         parent.se = child
       elseif dynamic_cast(ptr(quad(quads), quads), parent.se).type == 1 then
         var new_fork = dynamic_cast(ptr(quad(quads), quads), last_used + 1)
+        regentlib.c.printf("allocating %d\n", last_used + 1)
         assert(new_fork.type == 0, "region already allocated")
         new_fork.type = 2
         new_fork.center_x = parent.center_x + half_size / 2
@@ -71,6 +75,7 @@ do
         parent.ne = child
       elseif dynamic_cast(ptr(quad(quads), quads), parent.ne).type == 1 then
         var new_fork = dynamic_cast(ptr(quad(quads), quads), last_used + 1)
+        regentlib.c.printf("allocating %d\n", last_used + 1)
         assert(new_fork.type == 0, "region already allocated")
         new_fork.type = 2
         new_fork.center_x = parent.center_x + half_size / 2
@@ -124,5 +129,6 @@ do
 
   parent.total += 1
 
+  regentlib.c.printf("returning %d\n", new_last_used)
   return new_last_used
 end

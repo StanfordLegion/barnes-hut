@@ -189,11 +189,15 @@ do
   end
 end
 
-task size_quad(bodies : region(body), center_x : double, center_y : double, size : double, max_size: region(int))
-  where reads(bodies.{mass_x, mass_y, index}),
-  reads (max_size),
-  reduces max(max_size)
+task size_quad(bodies : region(body), quad_size : region(ispace(int1d), uint), min_x : double, min_y : double, size : double, sector : int1d)
+  where reads(bodies.{mass_x, mass_y}),
+  writes (quad_size)
 do
+  var sector_x = sector % sector_precision
+  var sector_y: int64 = cmath.floor(sector / sector_precision)
+  var center_x = min_x + (sector_x + 0.5) * size / sector_precision
+  var center_y = min_y + (sector_y + 0.5) * size / sector_precision
+
   var root = create_placeholder()
   root.center_x = center_x
   root.center_y = center_y
@@ -208,28 +212,42 @@ do
     add_placeholder(root, body_quad)
   end
 
-  max_size[0] max = max(max_size[0], count(root, true))
+  quad_size[sector] = count(root, true)
 end
 
-task build_quad(bodies : region(body), quads : region(quad(wild)), min_x : double, min_y : double, size : double, sector : int1d)
+task build_quad(bodies : region(body), quads : region(quad(wild)), quad_size : region(ispace(int1d), uint), quad_offset : region(ispace(int1d), uint), min_x : double, min_y : double, size : double, sector : int1d)
   where
   reads(bodies.{mass_x, mass_y, mass, index}),
+  reads(quads),
   writes(quads),
-  reads(quads)
+  reads(quad_size),
+  reads(quad_offset)
 do
-  c.printf("doing it %d\n", sector)
   var sector_x = sector % sector_precision
   var sector_y: int64 = cmath.floor(sector / sector_precision)
-
-  var root = dynamic_cast(ptr(quad(quads), quads), 0)
-  root.center_x = min_x + (sector_x + 0.5) * size / sector_precision
-  root.center_y = min_y + (sector_y + 0.5) * size / sector_precision
-  root.size = size / sector_precision
-  root.type = 2
   
-  var index = 1
+  if quad_size[sector] == 0 then
+    return
+  end
+
+  var index = quad_offset[sector]
+  c.printf("doing it %d %d\n", sector, index)
+
+  var root = dynamic_cast(ptr(quad(quads), quads), index)
+
+  quads[index].center_x = min_x + (sector_x + 0.5) * size / sector_precision
+  quads[index].center_y = min_y + (sector_y + 0.5) * size / sector_precision
+  quads[index].size = size / sector_precision
+  quads[index].type = 2
+  
+  index = index + 1
   for body in bodies do
     var body_quad = dynamic_cast(ptr(quad(quads), quads), index)
+    if body_quad.type ~= 0 then
+      c.printf("uh oh %d %d %d %f %f\n", sector, index, body_quad.type, body_quad.center_x, dynamic_cast(ptr(quad(quads), quads), index + 13).center_x)
+    else
+      c.printf("yay %d %d\n", sector, index)
+    end
     assert(body_quad.type == 0, "region already allocated")
     body_quad.mass_x = body.mass_x
     body_quad.mass_y = body.mass_y
@@ -319,35 +337,40 @@ do
   
   var sector_index = ispace(int1d, sector_precision * sector_precision + 1)
   var bodies_by_sector = partition(bodies.sector, sector_index)
-  var max_size = region(ispace(ptr, 1), int)
-  
-  for i in sector_index do
-    var sector_x = i % sector_precision
-    var sector_y: int64 = cmath.floor(i / sector_precision)
-    var center_x = boundaries[0].min_x + (sector_x + 0.5) * size / sector_precision
-    var center_y = boundaries[0].min_y + (sector_y + 0.5) * size / sector_precision
-    size_quad(bodies_by_sector[i], center_x, center_y, size, max_size)
-  end
+  var quad_size = region(sector_index, uint)
+  var quad_size_by_sector = partition(equal, quad_size, sector_index)
 
-  var quad_size = max_size[0] * sector_precision * sector_precision
-  
-  if verbose then
-    c.printf("Quad tree size: %d\n", quad_size)
-  end
-
-  var quads = region(ispace(ptr, quad_size), quad(quads))
-  fill(quads.{nw, sw, ne, se}, null(ptr(quad(quads), quads)))
-  fill(quads.type, 0)
-
-  var quads_partition = partition(equal, quads, sector_index)
   var min_x = boundaries[0].min_x
   var min_y = boundaries[0].min_y
 
   __demand(__parallel)
   for i in sector_index do
-    build_quad(bodies_by_sector[i], quads_partition[i], min_x, min_y, size, i)
+    size_quad(bodies_by_sector[i], quad_size_by_sector[i], min_x, min_y, size, i)
   end
 
+  var quad_offset = region(sector_index, uint)
+  var total_quad_size = 0
+  quad_offset[0] = 0
+  for i=0,sector_precision*sector_precision do
+    if quad_size[i] == 1 then
+      quad_size[i] = 0
+    end    
+    
+    total_quad_size = total_quad_size + quad_size[i]
+    quad_offset[i+1] = quad_offset[i] + quad_size[i]
+  end
+    
+  if verbose then
+    c.printf("Quad tree size: %d\n", total_quad_size)
+  end
+
+  var quads = region(ispace(ptr, 10000), quad(quads))
+  fill(quads.{nw, sw, ne, se}, null(ptr(quad(quads), quads)))
+  fill(quads.type, 0)
+
+  var quads_partition = partition(equal, quads, sector_index)
+
+  build_quad(bodies_by_sector[17], quads_partition[17], quad_size, quad_offset, min_x, min_y, size, 17)
 
   __demand(__parallel)
   for i in body_index do
