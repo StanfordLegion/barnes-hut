@@ -215,7 +215,7 @@ do
   quad_size[sector] = count(root, true)
 end
 
-task build_quad(bodies : region(body), quads : region(quad(wild)), quad_size : region(ispace(int1d), uint), quad_offset : region(ispace(int1d), uint), min_x : double, min_y : double, size : double, sector : int1d)
+task build_quad(bodies : region(body), quads : region(ispace(int1d), quad), quad_size : region(ispace(int1d), uint), quad_offset : region(ispace(int1d), uint), min_x : double, min_y : double, size : double, sector : int1d)
   where
   reads(bodies.{mass_x, mass_y, mass, index}),
   reads(quads),
@@ -230,41 +230,40 @@ do
     return
   end
 
+  fill(quads.{nw, sw, ne, se}, -1)
+  fill(quads.type, 0)
+
   var index = quad_offset[sector]
-  c.printf("doing it %d %d\n", sector, index)
 
-  var root = dynamic_cast(ptr(quad(quads), quads), index)
-
-  quads[index].center_x = min_x + (sector_x + 0.5) * size / sector_precision
-  quads[index].center_y = min_y + (sector_y + 0.5) * size / sector_precision
-  quads[index].size = size / sector_precision
-  quads[index].type = 2
+  var root_index = index
+  var root = quads[root_index]
+  assert(root.type == 0, "root already allocated")
+  root.center_x = min_x + (sector_x + 0.5) * size / sector_precision
+  root.center_y = min_y + (sector_y + 0.5) * size / sector_precision
+  root.size = size / sector_precision
+  root.type = 2
   
   index = index + 1
   for body in bodies do
-    var body_quad = dynamic_cast(ptr(quad(quads), quads), index)
-    if body_quad.type ~= 0 then
-      c.printf("uh oh %d %d %d %f %f\n", sector, index, body_quad.type, body_quad.center_x, dynamic_cast(ptr(quad(quads), quads), index + 13).center_x)
-    else
-      c.printf("yay %d %d\n", sector, index)
-    end
-    assert(body_quad.type == 0, "region already allocated")
+    var body_quad = quads[index]
+    assert(body_quad.type == 0, "body already allocated")
     body_quad.mass_x = body.mass_x
     body_quad.mass_y = body.mass_y
     body_quad.mass = body.mass
     body_quad.total = 1 
     body_quad.type = 1
     body_quad.index = body.index
-    index = add_node(quads, root, body_quad, index) + 1
+    index = add_node(quads, root_index, index, index) + 1
   end
 end
 
-task calculate_net_force(bodies : region(body), quads : region(quad(wild)), node : ptr(quad(wild), quads), body_ptr : ptr(body, bodies)): uint
+task calculate_net_force(bodies : region(body), quads : region(ispace(int1d), quad), node_index: int1d, body_ptr : ptr(body, bodies)): uint
   where
   reads(bodies),
   reduces +(bodies.{force_x, force_y}),
   reads(quads)
 do
+  var node = quads[node_index]
   if node.type == 1 and node.index == body_ptr.index then
     return 1
   end
@@ -293,13 +292,13 @@ do
   return 1
 end
 
-task update_body_positions(bodies : region(body), quads : region(quad(wild)))
+task update_body_positions(bodies : region(body), quads : region(ispace(int1d), quad))
   where
   reads(bodies),
   writes(bodies),
   reads(quads)
 do
-  var root = dynamic_cast(ptr(quad(quads), quads), 0)
+  var root = 0
   for body in bodies do
     calculate_net_force(bodies, quads, root, body)
     body.mass_x = body.mass_x + body.speed_x * delta
@@ -364,13 +363,13 @@ do
     c.printf("Quad tree size: %d\n", total_quad_size)
   end
 
-  var quads = region(ispace(ptr, 10000), quad(quads))
-  fill(quads.{nw, sw, ne, se}, null(ptr(quad(quads), quads)))
+  var quads = region(ispace(int1d, total_quad_size), quad)
+  fill(quads.{nw, sw, ne, se}, -1)
   fill(quads.type, 0)
-
-  var quads_partition = partition(equal, quads, sector_index)
-
-  build_quad(bodies_by_sector[17], quads_partition[17], quad_size, quad_offset, min_x, min_y, size, 17)
+  
+  for i in sector_index do
+      build_quad(bodies_by_sector[i], quads, quad_size, quad_offset, min_x, min_y, size, i)
+  end
 
   __demand(__parallel)
   for i in body_index do
