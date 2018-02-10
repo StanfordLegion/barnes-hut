@@ -83,28 +83,28 @@ do
   parent.mass_x = 0
   parent.mass_y = 0
   
-  if isnull(parent.sw) == false then
+  if not isnull(parent.sw) then
     var mass = dynamic_cast(ptr(quad(quads), quads), parent.sw).mass
     parent.mass += mass
     parent.mass_x += dynamic_cast(ptr(quad(quads), quads), parent.sw).mass_x * mass
     parent.mass_y += dynamic_cast(ptr(quad(quads), quads), parent.sw).mass_y * mass
   end 
 
-  if isnull(parent.nw) == false then
+  if not isnull(parent.nw) then
     var mass = dynamic_cast(ptr(quad(quads), quads), parent.nw).mass
     parent.mass += mass
     parent.mass_x += dynamic_cast(ptr(quad(quads), quads), parent.nw).mass_x * mass
     parent.mass_y += dynamic_cast(ptr(quad(quads), quads), parent.nw).mass_y * mass
   end
 
-  if isnull(parent.se) == false then
+  if not isnull(parent.se) then
     var mass = dynamic_cast(ptr(quad(quads), quads), parent.se).mass
     parent.mass += mass
     parent.mass_x += dynamic_cast(ptr(quad(quads), quads), parent.se).mass_x * mass
     parent.mass_y += dynamic_cast(ptr(quad(quads), quads), parent.se).mass_y * mass
   end
 
-  if isnull(parent.ne) == false then
+  if not isnull(parent.ne) then
     var mass = dynamic_cast(ptr(quad(quads), quads), parent.ne).mass
     parent.mass += mass
     parent.mass_x += dynamic_cast(ptr(quad(quads), quads), parent.ne).mass_x * mass

@@ -33,7 +33,7 @@ struct Config {
 
 fspace body {
   {mass_x, mass_y, speed_x, speed_y, mass, force_x, force_y} : double,
-  sector : int2d,
+  sector : int1d,
   {color, index} : uint,
 }
 
@@ -144,9 +144,11 @@ task print_update(iteration : uint, bodies : region(body))
 do
   c.printf("Iteration %d\n", iteration + 1)
   for body in bodies do
-    var sector = body.sector
+    var sector_x = body.sector % sector_precision
+    var sector_y: int64 = cmath.floor(body.sector / sector_precision)
+
     c.printf("%d: x: %f, y: %f, speed_x: %f, speed_y: %f, sector: (%d, %d)\n",
-    body.index, body.mass_x, body.mass_y, body.speed_x, body.speed_y, sector.x, sector.y)
+    body.index, body.mass_x, body.mass_y, body.speed_x, body.speed_y, sector_x, sector_y)
   end
   c.printf("\n") 
 end
@@ -182,7 +184,7 @@ do
       sector_y = sector_y - 1
     end
 
-    body.sector = { x = sector_x , y = sector_y }
+    body.sector = sector_x + sector_y * sector_precision
   end
 end
 
