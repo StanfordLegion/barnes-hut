@@ -1,5 +1,7 @@
 import "regent"
 
+local assert = regentlib.assert
+
 fspace quad(r : region(quad(wild))) {
   {mass_x, mass_y, mass, center_x, center_y, size} : double,
   {total, type, index} : uint,
@@ -19,6 +21,7 @@ do
         parent.sw = child
       elseif dynamic_cast(ptr(quad(quads), quads), parent.sw).type == 1 then
         var new_fork = dynamic_cast(ptr(quad(quads), quads), last_used + 1)
+        assert(new_fork.type == 0, "region already allocated")
         new_fork.type = 2
         new_fork.center_x = parent.center_x - half_size / 2
         new_fork.center_y = parent.center_y - half_size / 2
@@ -34,6 +37,7 @@ do
         parent.nw = child
       elseif dynamic_cast(ptr(quad(quads), quads), parent.nw).type == 1 then
         var new_fork = dynamic_cast(ptr(quad(quads), quads), last_used + 1)
+        assert(new_fork.type == 0, "region already allocated")
         new_fork.type = 2
         new_fork.center_x = parent.center_x - half_size / 2
         new_fork.center_y = parent.center_y + half_size / 2
@@ -51,6 +55,7 @@ do
         parent.se = child
       elseif dynamic_cast(ptr(quad(quads), quads), parent.se).type == 1 then
         var new_fork = dynamic_cast(ptr(quad(quads), quads), last_used + 1)
+        assert(new_fork.type == 0, "region already allocated")
         new_fork.type = 2
         new_fork.center_x = parent.center_x + half_size / 2
         new_fork.center_y = parent.center_y - half_size / 2
@@ -66,6 +71,7 @@ do
         parent.ne = child
       elseif dynamic_cast(ptr(quad(quads), quads), parent.ne).type == 1 then
         var new_fork = dynamic_cast(ptr(quad(quads), quads), last_used + 1)
+        assert(new_fork.type == 0, "region already allocated")
         new_fork.type = 2
         new_fork.center_x = parent.center_x + half_size / 2
         new_fork.center_y = parent.center_y + half_size / 2

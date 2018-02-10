@@ -1,6 +1,7 @@
 import "regent"
 require("quad_tree")
 
+local assert = regentlib.assert
 local c = regentlib.c
 local cos = regentlib.cos(float)
 local sin = regentlib.sin(float)
@@ -188,8 +189,10 @@ do
   end
 end
 
-task size_quad(bodies : region(body), center_x : double, center_y : double, size : double): uint
-  where reads(bodies.{mass_x, mass_y})
+task size_quad(bodies : region(body), center_x : double, center_y : double, size : double, max_size: region(int))
+  where reads(bodies.{mass_x, mass_y, index}),
+  reads (max_size),
+  reduces max(max_size)
 do
   var root = create_placeholder()
   root.center_x = center_x
@@ -205,7 +208,7 @@ do
     add_placeholder(root, body_quad)
   end
 
-  return count(root, true)
+  max_size[0] max = max(max_size[0], count(root, true))
 end
 
 task build_quad(bodies : region(body), quads : region(quad(wild)), center_x : double, center_y : double, size : double)
@@ -222,6 +225,7 @@ do
   var index = 1
   for body in bodies do
     var body_quad = dynamic_cast(ptr(quad(quads), quads), index)
+    assert(body_quad.type == 0, "region already allocated")
     body_quad.mass_x = body.mass_x
     body_quad.mass_y = body.mass_y
     body_quad.mass = body.mass
@@ -243,6 +247,9 @@ do
   end
 
   var dist = sqrt((body_ptr.mass_x - node.mass_x) * (body_ptr.mass_x - node.mass_x) + (body_ptr.mass_y - node.mass_y) * (body_ptr.mass_y - node.mass_y))
+  if dist == 0 then
+    return 1
+  end
 
   if node.type == 2 and node.size / dist >= theta then
     calculate_net_force(bodies, quads, node.sw, body_ptr)
@@ -296,8 +303,6 @@ do
   var size_x = boundaries[0].max_x - boundaries[0].min_x
   var size_y = boundaries[0].max_y - boundaries[0].min_y
   var size = max(size_x, size_y)
-  var center_x = boundaries[0].min_x + size / 2
-  var center_y = boundaries[0].min_y + size / 2
 
   for i in body_index do
     assign_sectors(bodies_partition[i], boundaries[0].min_x, boundaries[0].min_y, size)
@@ -306,15 +311,38 @@ do
   if verbose then
     c.printf("Calculating required size of quad tree\n")
   end
-  var quad_size = size_quad(bodies, center_x, center_y, size)
+  
+  var sector_index = ispace(int1d, sector_precision * sector_precision + 1)
+  var bodies_by_sector = partition(bodies.sector, sector_index)
+  var max_size = region(ispace(ptr, 1), int)
+  
+  for i in sector_index do
+    var sector_x = i % sector_precision
+    var sector_y: int64 = cmath.floor(i / sector_precision)
+    var center_x = boundaries[0].min_x + (sector_x + 0.5) * size / sector_precision
+    var center_y = boundaries[0].min_y + (sector_y + 0.5) * size / sector_precision
+    size_quad(bodies_by_sector[i], center_x, center_y, size, max_size)
+  end
+
+  var quad_size = max_size[0] * sector_precision * sector_precision
+  
   if verbose then
     c.printf("Quad tree size: %d\n", quad_size)
   end
 
   var quads = region(ispace(ptr, quad_size), quad(quads))
   fill(quads.{nw, sw, ne, se}, null(ptr(quad(quads), quads)))
+  fill(quads.type, 0)
 
-  build_quad(bodies, quads, center_x, center_y, size)
+  for i in sector_index do
+    var sector_x = i % sector_precision
+    var sector_y: int64 = cmath.floor(i / sector_precision)
+    var center_x = boundaries[0].min_x + (sector_x + 0.5) * size / sector_precision
+    var center_y = boundaries[0].min_y + (sector_y + 0.5) * size / sector_precision
+    size_quad(bodies_by_sector[i], center_x, center_y, size, max_size)
+  end
+
+  build_quad(bodies, quads, boundaries[0].min_x + size / 2, boundaries[0].min_y + size / 2, size)
 
   for i in body_index do
     update_body_positions(bodies_partition[i], quads)
@@ -330,7 +358,7 @@ task main()
 
   conf = parse_input_args(conf)
   
-  if conf.output_dir_set ~= true then
+  if not conf.output_dir_set then
     c.printf("output dir must be specified\n")
     c.exit(-1)
   end
