@@ -211,17 +211,22 @@ do
   max_size[0] max = max(max_size[0], count(root, true))
 end
 
-task build_quad(bodies : region(body), quads : region(quad(wild)), center_x : double, center_y : double, size : double)
+task build_quad(bodies : region(body), quads : region(quad(wild)), min_x : double, min_y : double, size : double, sector : int1d)
   where
   reads(bodies.{mass_x, mass_y, mass, index}),
   writes(quads),
   reads(quads)
 do
+  c.printf("doing it %d\n", sector)
+  var sector_x = sector % sector_precision
+  var sector_y: int64 = cmath.floor(sector / sector_precision)
+
   var root = dynamic_cast(ptr(quad(quads), quads), 0)
-  root.center_x = center_x
-  root.center_y = center_y
-  root.size = size
+  root.center_x = min_x + (sector_x + 0.5) * size / sector_precision
+  root.center_y = min_y + (sector_y + 0.5) * size / sector_precision
+  root.size = size / sector_precision
   root.type = 2
+  
   var index = 1
   for body in bodies do
     var body_quad = dynamic_cast(ptr(quad(quads), quads), index)
@@ -334,16 +339,17 @@ do
   fill(quads.{nw, sw, ne, se}, null(ptr(quad(quads), quads)))
   fill(quads.type, 0)
 
+  var quads_partition = partition(equal, quads, sector_index)
+  var min_x = boundaries[0].min_x
+  var min_y = boundaries[0].min_y
+
+  __demand(__parallel)
   for i in sector_index do
-    var sector_x = i % sector_precision
-    var sector_y: int64 = cmath.floor(i / sector_precision)
-    var center_x = boundaries[0].min_x + (sector_x + 0.5) * size / sector_precision
-    var center_y = boundaries[0].min_y + (sector_y + 0.5) * size / sector_precision
-    size_quad(bodies_by_sector[i], center_x, center_y, size, max_size)
+    build_quad(bodies_by_sector[i], quads_partition[i], min_x, min_y, size, i)
   end
 
-  build_quad(bodies, quads, boundaries[0].min_x + size / 2, boundaries[0].min_y + size / 2, size)
 
+  __demand(__parallel)
   for i in body_index do
     update_body_positions(bodies_partition[i], quads)
   end
