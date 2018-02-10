@@ -176,10 +176,10 @@ do
     body_quad.mass_x = body.mass_x
     body_quad.mass_y = body.mass_y
     body_quad.type = 1
-    root = add_placeholder(root, body_quad)
+    add_placeholder(root, body_quad)
   end
 
-  return root.num_elements
+  return count(root, true)
 end
 
 task build_quad(bodies : region(body), quads : region(quad(wild)), center_x : double, center_y : double, size : double)
