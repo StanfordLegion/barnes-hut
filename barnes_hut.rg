@@ -20,8 +20,7 @@ rawset(_G, "srand48", std.srand48)
 local gee = 100
 local delta = 0.1
 local theta = 0.5
-local N = 4
-local sector_precision = 16
+local sector_precision = 2
 
 struct Config {
   num_bodies : uint,
@@ -230,9 +229,6 @@ do
     return
   end
 
-  fill(quads.{nw, sw, ne, se}, -1)
-  fill(quads.type, 0)
-
   var index = quad_offset[sector]
 
   var root_index = index
@@ -349,7 +345,7 @@ do
 
   var quad_offset = region(sector_index, uint)
   var total_quad_size = 0
-  quad_offset[0] = 0
+  quad_offset[0] = 1
   for i=0,sector_precision*sector_precision do
     if quad_size[i] == 1 then
       quad_size[i] = 0
@@ -368,7 +364,30 @@ do
   fill(quads.type, 0)
   
   for i in sector_index do
-      build_quad(bodies_by_sector[i], quads, quad_size, quad_offset, min_x, min_y, size, i)
+    build_quad(bodies_by_sector[i], quads, quad_size, quad_offset, min_x, min_y, size, i)
+  end
+
+  -- TODO: Make this more granular
+  var base_root = quads[0]
+  base_root.center_x = min_x + size / 2
+  base_root.center_y = min_y + size / 2
+  base_root.size = size
+  base_root.type = 2
+  
+  if quads[quad_offset[0]].type == 2 then
+    add_node(quads, 0, quad_offset[0], 0)
+  end
+  
+  if quads[quad_offset[1]].type == 2 then
+    add_node(quads, 0, quad_offset[1], 0)
+  end
+
+  if quads[quad_offset[2]].type == 2 then
+    add_node(quads, 0, quad_offset[2], 0)
+  end
+
+  if quads[quad_offset[3]].type == 2 then
+    add_node(quads, 0, quad_offset[3], 0)
   end
 
   __demand(__parallel)
