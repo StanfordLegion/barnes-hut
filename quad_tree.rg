@@ -1,19 +1,9 @@
 import "regent"
 
 fspace quad(r : region(quad(wild))) {
-  mass_x: double,
-  mass_y: double,
-  mass: double,
-  center_x: double,
-  center_y: double,
-  size: double,
-  total: uint,
-  type: uint,
-  index: uint,
-  ne: ptr(quad(wild), r),
-  nw: ptr(quad(wild), r),
-  se: ptr(quad(wild), r),
-  sw: ptr(quad(wild), r)
+  {mass_x, mass_y, mass, center_x, center_y, size} : double,
+  {total, type, index} : uint,
+  {ne, nw, se, sw} : ptr(quad(wild), r),
 }
 
 task add_node(quads : region(quad(wild)), parent : ptr(quad(wild), quads), child : ptr(quad(wild), quads), last_used : uint): uint

@@ -3,16 +3,16 @@ import "regent"
 local c = regentlib.c
 
 struct quad_placeholder {
-  mass_x: double,
-  mass_y: double,
-  center_x: double,
-  center_y: double,
-  size: double,
-  type: uint,
-  ne: &quad_placeholder,
-  nw: &quad_placeholder,
-  se: &quad_placeholder,
-  sw: &quad_placeholder
+  mass_x : double,
+  mass_y : double,
+  center_x : double,
+  center_y : double,
+  size : double,
+  type : uint,
+  ne : &quad_placeholder,
+  nw : &quad_placeholder,
+  se : &quad_placeholder,
+  sw : &quad_placeholder,
 }
 
 terra create_placeholder(): &quad_placeholder

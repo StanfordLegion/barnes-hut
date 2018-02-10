@@ -19,6 +19,8 @@ rawset(_G, "srand48", std.srand48)
 local gee = 100
 local delta = 0.1
 local theta = 0.5
+local N = 4
+local sector_precision = 16
 
 struct Config {
   num_bodies : uint,
@@ -31,7 +33,8 @@ struct Config {
 
 fspace body {
   {mass_x, mass_y, speed_x, speed_y, mass, force_x, force_y} : double,
-  {color, index} : uint
+  sector : int2d,
+  {color, index} : uint,
 }
 
 fspace boundary {
@@ -141,8 +144,9 @@ task print_update(iteration : uint, bodies : region(body))
 do
   c.printf("Iteration %d\n", iteration + 1)
   for body in bodies do
-    c.printf("%d: x: %f, y: %f, speed_x: %f, speed_y: %f\n",
-    body.index, body.mass_x, body.mass_y, body.speed_x, body.speed_y)
+    var sector = body.sector
+    c.printf("%d: x: %f, y: %f, speed_x: %f, speed_y: %f, sector: (%d, %d)\n",
+    body.index, body.mass_x, body.mass_y, body.speed_x, body.speed_y, sector.x, sector.y)
   end
   c.printf("\n") 
 end
@@ -159,6 +163,26 @@ do
     boundaries[0].min_y min = min(body.mass_y, boundaries[0].min_y)
     boundaries[0].max_x max = max(body.mass_x, boundaries[0].max_x)
     boundaries[0].max_y max = max(body.mass_y, boundaries[0].max_y)
+  end
+end
+
+task assign_sectors(bodies : region(body), min_x : double, min_y : double, size : double)
+  where
+  reads(bodies.{mass_x, mass_y, sector}),
+  writes(bodies.sector)
+do
+  for body in bodies do
+    var sector_x: int64 = cmath.floor((body.mass_x - min_x) / (size / sector_precision))
+    if (sector_x >= sector_precision) then
+      sector_x = sector_x - 1
+    end
+
+    var sector_y: int64 = cmath.floor((body.mass_y - min_y) / (size / sector_precision))
+    if (sector_y >= sector_precision) then
+      sector_y = sector_y - 1
+    end
+
+    body.sector = { x = sector_x , y = sector_y }
   end
 end
 
@@ -273,12 +297,16 @@ do
   var center_x = boundaries[0].min_x + size / 2
   var center_y = boundaries[0].min_y + size / 2
 
+  for i in body_index do
+    assign_sectors(bodies_partition[i], boundaries[0].min_x, boundaries[0].min_y, size)
+  end
+
   if verbose then
     c.printf("Calculating required size of quad tree\n")
   end
   var quad_size = size_quad(bodies, center_x, center_y, size)
   if verbose then
-    c.printf("Quad tree size: %d", quad_size)
+    c.printf("Quad tree size: %d\n", quad_size)
   end
 
   var quads = region(ispace(ptr, quad_size), quad(quads))
