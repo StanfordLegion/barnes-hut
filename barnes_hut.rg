@@ -22,8 +22,8 @@ local gee = 100
 local delta = 0.1
 local theta = 0.5
 
-local N = 1
-local sector_precision = 2
+local N = 4
+local sector_precision = 16
 
 struct Config {
   num_bodies : uint,
@@ -356,7 +356,7 @@ do
     total_quad_size = total_quad_size + pow(4, i)
   end
 
-  c.printf("root offset: %d\n", total_quad_size )
+  c.printf("root offset: %d\n", total_quad_size)
 
   quad_offset[0] = total_quad_size
   for i=0,sector_precision*sector_precision do
@@ -384,25 +384,40 @@ do
     -- c.printf("%d Quad index: %d, type %d mass_x %f, mass_y %f, mass %f, center_x %f, center_y %f, size %f, total %d, sw %d, nw %d, se %d, ne %d\n", i, quads[i].index, quads[i].type, quads[i].mass_x, quads[i].mass_y, quads[i].mass, quads[i].center_x, quads[i].center_y, quads[i].size, quads[i].total, quads[i].sw, quads[i].nw, quads[i].se, quads[i].ne)
   -- end
 
-  quads[0].center_x = min_x + size / 2
-  quads[0].center_y = min_y + size / 2
-  quads[0].size = size
-  quads[0].type = 2
-
-  if quad_size[0] > 0 then
-    add_node(quads, 0, quad_offset[0], 0)
+  var to_merge : int[sector_precision][sector_precision]
+  for i=0,sector_precision do
+    for j=0,sector_precision do
+      if quad_size[i + j*sector_precision] > 0 then
+        to_merge[i][j] = quad_offset[i + j*sector_precision]
+      else
+        to_merge[i][j] = -1
+      end
+    end
   end
   
-  if quad_size[1] > 0 then
-    add_node(quads, 0, quad_offset[1], 0)
-  end
+  var allocation_index = quad_offset[0] - 1
+  var level = sector_precision
+  while level > 1 do
+    var next_level = level / 2
+    for i=0,next_level do
+      for j=0,next_level do
+        quads[allocation_index].size = size / next_level
+        quads[allocation_index].center_x = min_x + size / next_level * (i + 0.5)
+        quads[allocation_index].center_y = min_y + size / next_level * (j + 0.5)
+        quads[allocation_index].type = 2
 
-  if quad_size[2] > 0 then
-    add_node(quads, 0, quad_offset[2], 0)
-  end
+        for k=0,2 do
+          if to_merge[2*i+k][2*j+k] ~= -1 and quads[to_merge[2*i+k][2*j+k]].total > 0 then
+            add_node(quads, allocation_index, to_merge[2*i+k][2*j+k], 0)
+          end
+        end
 
-  if quad_size[3] > 0 then
-    add_node(quads, 0, quad_offset[3], 0)
+        to_merge[i][j] = allocation_index
+
+        allocation_index = allocation_index - 1      
+      end
+    end
+    level = next_level
   end
 
   __demand(__parallel)
