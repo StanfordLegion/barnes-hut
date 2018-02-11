@@ -356,8 +356,6 @@ do
     total_quad_size = total_quad_size + pow(4, i)
   end
 
-  c.printf("root offset: %d\n", total_quad_size)
-
   quad_offset[0] = total_quad_size
   for i=0,sector_precision*sector_precision do
     if quad_size[i] == 1 then
