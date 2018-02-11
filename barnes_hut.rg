@@ -225,30 +225,33 @@ do
   var sector_x = sector % sector_precision
   var sector_y: int64 = cmath.floor(sector / sector_precision)
   
+  -- c.printf("sector %d size %d\n", sector, quad_size[sector])
+
   if quad_size[sector] == 0 then
     return
   end
 
   var index = quad_offset[sector]
+  -- c.printf("sector offset %d\n", index)
 
   var root_index = index
   var root = quads[root_index]
-  assert(root.type == 0, "root already allocated")
-  root.center_x = min_x + (sector_x + 0.5) * size / sector_precision
-  root.center_y = min_y + (sector_y + 0.5) * size / sector_precision
-  root.size = size / sector_precision
-  root.type = 2
+  assert(quads[root_index].type == 0, "root already allocated")
+  quads[root_index].center_x = min_x + (sector_x + 0.5) * size / sector_precision
+  quads[root_index].center_y = min_y + (sector_y + 0.5) * size / sector_precision
+  quads[root_index].size = size / sector_precision
+  quads[root_index].type = 2
   
   index = index + 1
   for body in bodies do
-    var body_quad = quads[index]
-    assert(body_quad.type == 0, "body already allocated")
-    body_quad.mass_x = body.mass_x
-    body_quad.mass_y = body.mass_y
-    body_quad.mass = body.mass
-    body_quad.total = 1 
-    body_quad.type = 1
-    body_quad.index = body.index
+    -- c.printf("inserting body\n\n")
+    assert(quads[index].type == 0, "body already allocated")
+    quads[index].mass_x = body.mass_x
+    quads[index].mass_y = body.mass_y
+    quads[index].mass = body.mass
+    quads[index].total = 1
+    quads[index].type = 1
+    quads[index].index = body.index
     index = add_node(quads, root_index, index, index) + 1
   end
 end
@@ -330,7 +333,7 @@ do
     c.printf("Calculating required size of quad tree\n")
   end
   
-  var sector_index = ispace(int1d, sector_precision * sector_precision + 1)
+  var sector_index = ispace(int1d, sector_precision * sector_precision)
   var bodies_by_sector = partition(bodies.sector, sector_index)
   var quad_size = region(sector_index, uint)
   var quad_size_by_sector = partition(equal, quad_size, sector_index)
@@ -344,7 +347,7 @@ do
   end
 
   var quad_offset = region(sector_index, uint)
-  var total_quad_size = 0
+  var total_quad_size = 1
   quad_offset[0] = 1
   for i=0,sector_precision*sector_precision do
     if quad_size[i] == 1 then
@@ -359,34 +362,37 @@ do
     c.printf("Quad tree size: %d\n", total_quad_size)
   end
 
-  var quads = region(ispace(int1d, total_quad_size), quad)
+  var quads_index = ispace(int1d, total_quad_size)
+  var quads = region(quads_index, quad)
   fill(quads.{nw, sw, ne, se}, -1)
-  fill(quads.type, 0)
-  
+
+  var base_root = quads[0]
+  quads[0].center_x = min_x + size / 2
+  quads[0].center_y = min_y + size / 2
+  quads[0].size = size
+  quads[0].type = 2
+
   for i in sector_index do
     build_quad(bodies_by_sector[i], quads, quad_size, quad_offset, min_x, min_y, size, i)
   end
 
-  -- TODO: Make this more granular
-  var base_root = quads[0]
-  base_root.center_x = min_x + size / 2
-  base_root.center_y = min_y + size / 2
-  base_root.size = size
-  base_root.type = 2
+  -- for i in quads_index do
+    -- c.printf("%d Quad index: %d, type %d mass_x %f, mass_y %f, mass %f, center_x %f, center_y %f, size %f, total %d, sw %d, nw %d, se %d, ne %d\n", i, quads[i].index, quads[i].type, quads[i].mass_x, quads[i].mass_y, quads[i].mass, quads[i].center_x, quads[i].center_y, quads[i].size, quads[i].total, quads[i].sw, quads[i].nw, quads[i].se, quads[i].ne)
+  -- end
   
-  if quads[quad_offset[0]].type == 2 then
+  if quad_size[0] > 0 then
     add_node(quads, 0, quad_offset[0], 0)
   end
   
-  if quads[quad_offset[1]].type == 2 then
+  if quad_size[1] > 0 then
     add_node(quads, 0, quad_offset[1], 0)
   end
 
-  if quads[quad_offset[2]].type == 2 then
+  if quad_size[2] > 0 then
     add_node(quads, 0, quad_offset[2], 0)
   end
 
-  if quads[quad_offset[3]].type == 2 then
+  if quad_size[3] > 0 then
     add_node(quads, 0, quad_offset[3], 0)
   end
 
