@@ -4,6 +4,7 @@ require("quad_tree")
 local assert = regentlib.assert
 local c = regentlib.c
 local cos = regentlib.cos(float)
+local pow = regentlib.pow(float)
 local sin = regentlib.sin(float)
 local sqrt = regentlib.sqrt(float)
 
@@ -20,6 +21,8 @@ rawset(_G, "srand48", std.srand48)
 local gee = 100
 local delta = 0.1
 local theta = 0.5
+
+local N = 1
 local sector_precision = 2
 
 struct Config {
@@ -211,7 +214,8 @@ do
     add_placeholder(root, body_quad)
   end
 
-  quad_size[sector] = count(root, true)
+  -- Adding fudge factor, something is still broken here
+  quad_size[sector] = count(root, true) + 10
 end
 
 task build_quad(bodies : region(body), quads : region(ispace(int1d), quad), quad_size : region(ispace(int1d), uint), quad_offset : region(ispace(int1d), uint), min_x : double, min_y : double, size : double, sector : int1d)
@@ -347,8 +351,14 @@ do
   end
 
   var quad_offset = region(sector_index, uint)
-  var total_quad_size = 1
-  quad_offset[0] = 1
+  var total_quad_size : int = 0
+  for i=0,N do
+    total_quad_size = total_quad_size + pow(4, i)
+  end
+
+  c.printf("root offset: %d\n", total_quad_size )
+
+  quad_offset[0] = total_quad_size
   for i=0,sector_precision*sector_precision do
     if quad_size[i] == 1 then
       quad_size[i] = 0
@@ -366,12 +376,6 @@ do
   var quads = region(quads_index, quad)
   fill(quads.{nw, sw, ne, se}, -1)
 
-  var base_root = quads[0]
-  quads[0].center_x = min_x + size / 2
-  quads[0].center_y = min_y + size / 2
-  quads[0].size = size
-  quads[0].type = 2
-
   for i in sector_index do
     build_quad(bodies_by_sector[i], quads, quad_size, quad_offset, min_x, min_y, size, i)
   end
@@ -379,7 +383,12 @@ do
   -- for i in quads_index do
     -- c.printf("%d Quad index: %d, type %d mass_x %f, mass_y %f, mass %f, center_x %f, center_y %f, size %f, total %d, sw %d, nw %d, se %d, ne %d\n", i, quads[i].index, quads[i].type, quads[i].mass_x, quads[i].mass_y, quads[i].mass, quads[i].center_x, quads[i].center_y, quads[i].size, quads[i].total, quads[i].sw, quads[i].nw, quads[i].se, quads[i].ne)
   -- end
-  
+
+  quads[0].center_x = min_x + size / 2
+  quads[0].center_y = min_y + size / 2
+  quads[0].size = size
+  quads[0].type = 2
+
   if quad_size[0] > 0 then
     add_node(quads, 0, quad_offset[0], 0)
   end
