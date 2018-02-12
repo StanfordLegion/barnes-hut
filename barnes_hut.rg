@@ -191,9 +191,10 @@ do
   end
 end
 
-task size_quad(bodies : region(body), quad_size : region(ispace(int1d), uint), min_x : double, min_y : double, size : double, sector : int1d)
-  where reads(bodies.{mass_x, mass_y}),
-  writes (quad_size)
+task size_quad(bodies : region(body), max_size : region(uint), min_x : double, min_y : double, size : double, sector : int1d)
+  where reads(bodies.{mass_x, mass_y, index}),
+  reads (max_size),
+  reduces max(max_size)
 do
   var sector_x = sector % sector_precision
   var sector_y: int64 = cmath.floor(sector / sector_precision)
@@ -215,31 +216,20 @@ do
   end
 
   -- Adding fudge factor, something is still broken here
-  quad_size[sector] = count(root, true) + 10
+  max_size[0] max = max(max_size[0], count(root, true))
 end
 
-task build_quad(bodies : region(body), quads : region(ispace(int1d), quad), quad_size : region(ispace(int1d), uint), quad_offset : region(ispace(int1d), uint), min_x : double, min_y : double, size : double, sector : int1d)
+task build_quad(bodies : region(body), quads : region(ispace(int1d), quad), min_x : double, min_y : double, size : double, sector : int1d, partition_size: uint)
   where
   reads(bodies.{mass_x, mass_y, mass, index}),
   reads(quads),
-  writes(quads),
-  reads(quad_size),
-  reads(quad_offset)
+  writes(quads)
 do
   var sector_x = sector % sector_precision
   var sector_y: int64 = cmath.floor(sector / sector_precision)
-  
-  -- c.printf("sector %d size %d\n", sector, quad_size[sector])
 
-  if quad_size[sector] == 0 then
-    return
-  end
-
-  var index = quad_offset[sector]
-  -- c.printf("sector offset %d\n", index)
-
+  var index = sector * partition_size
   var root_index = index
-  var root = quads[root_index]
   assert(quads[root_index].type == 0, "root already allocated")
   quads[root_index].center_x = min_x + (sector_x + 0.5) * size / sector_precision
   quads[root_index].center_y = min_y + (sector_y + 0.5) * size / sector_precision
@@ -248,7 +238,6 @@ do
   
   index = index + 1
   for body in bodies do
-    -- c.printf("inserting body\n\n")
     assert(quads[index].type == 0, "body already allocated")
     quads[index].mass_x = body.mass_x
     quads[index].mass_y = body.mass_y
@@ -295,13 +284,13 @@ do
   return 1
 end
 
-task update_body_positions(bodies : region(body), quads : region(ispace(int1d), quad))
+task update_body_positions(bodies : region(body), quads : region(ispace(int1d), quad), root_index : uint)
   where
   reads(bodies),
   writes(bodies),
   reads(quads)
 do
-  var root = 0
+  var root = root_index
   for body in bodies do
     calculate_net_force(bodies, quads, root, body)
     body.mass_x = body.mass_x + body.speed_x * delta
@@ -339,43 +328,35 @@ do
   
   var sector_index = ispace(int1d, sector_precision * sector_precision)
   var bodies_by_sector = partition(bodies.sector, sector_index)
-  var quad_size = region(sector_index, uint)
-  var quad_size_by_sector = partition(equal, quad_size, sector_index)
+
+  var max_size = region(ispace(ptr, 1), uint)
+  max_size[0] = 0
+  for i=0,N do
+    max_size[0] = max_size[0] + pow(4, i)
+  end
 
   var min_x = boundaries[0].min_x
   var min_y = boundaries[0].min_y
 
-  __demand(__parallel)
   for i in sector_index do
-    size_quad(bodies_by_sector[i], quad_size_by_sector[i], min_x, min_y, size, i)
-  end
-
-  var quad_offset = region(sector_index, uint)
-  var total_quad_size : int = 0
-  for i=0,N do
-    total_quad_size = total_quad_size + pow(4, i)
-  end
-
-  quad_offset[0] = total_quad_size
-  for i=0,sector_precision*sector_precision do
-    if quad_size[i] == 1 then
-      quad_size[i] = 0
-    end    
-    
-    total_quad_size = total_quad_size + quad_size[i]
-    quad_offset[i+1] = quad_offset[i] + quad_size[i]
+    size_quad(bodies_by_sector[i], max_size, min_x, min_y, size, i)
   end
     
+  var partition_size = max_size[0]
   if verbose then
-    c.printf("Quad tree size: %d\n", total_quad_size)
+    c.printf("Quad tree size: %d\n", partition_size * (sector_precision * sector_precision + 1))
   end
 
-  var quads_index = ispace(int1d, total_quad_size)
+  var quads_split = ispace(int1d, sector_precision * sector_precision + 1)
+  var quads_index = ispace(int1d, partition_size * (sector_precision * sector_precision + 1))
   var quads = region(quads_index, quad)
   fill(quads.{nw, sw, ne, se}, -1)
 
+  var quads_partition = partition(equal, quads, quads_split)
+
+  __demand(__parallel)
   for i in sector_index do
-    build_quad(bodies_by_sector[i], quads, quad_size, quad_offset, min_x, min_y, size, i)
+    build_quad(bodies_by_sector[i], quads_partition[i], min_x, min_y, size, i, partition_size)
   end
 
   -- for i in quads_index do
@@ -385,15 +366,11 @@ do
   var to_merge : int[sector_precision][sector_precision]
   for i=0,sector_precision do
     for j=0,sector_precision do
-      if quad_size[i + j*sector_precision] > 0 then
-        to_merge[i][j] = quad_offset[i + j*sector_precision]
-      else
-        to_merge[i][j] = -1
-      end
+      to_merge[i][j] = (i + j*sector_precision + 1) * partition_size
     end
   end
   
-  var allocation_index = quad_offset[0] - 1
+  var allocation_index = partition_size * sector_precision * sector_precision
   var level = sector_precision
   while level > 1 do
     var next_level = level / 2
@@ -412,7 +389,7 @@ do
 
         to_merge[i][j] = allocation_index
 
-        allocation_index = allocation_index - 1      
+        allocation_index = allocation_index + 1
       end
     end
     level = next_level
@@ -420,7 +397,7 @@ do
 
   __demand(__parallel)
   for i in body_index do
-    update_body_positions(bodies_partition[i], quads)
+    update_body_positions(bodies_partition[i], quads, allocation_index)
   end
 end
 
