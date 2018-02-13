@@ -215,7 +215,6 @@ do
     add_placeholder(root, body_quad)
   end
 
-  -- Adding fudge factor, something is still broken here
   max_size[0] max = max(max_size[0], count(root, true))
 end
 
