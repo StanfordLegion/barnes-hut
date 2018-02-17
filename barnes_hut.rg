@@ -204,7 +204,7 @@ do
   var root = create_placeholder()
   root.center_x = center_x
   root.center_y = center_y
-  root.size = size
+  root.size = size / sector_precision
   root.type = 2
 
   for body in bodies do
@@ -360,7 +360,7 @@ do
     -- c.printf("%d Quad index: %d, type %d mass_x %f, mass_y %f, mass %f, center_x %f, center_y %f, size %f, total %d, sw %d, nw %d, se %d, ne %d\n", i, quads[i].index, quads[i].type, quads[i].mass_x, quads[i].mass_y, quads[i].mass, quads[i].center_x, quads[i].center_y, quads[i].size, quads[i].total, quads[i].sw, quads[i].nw, quads[i].se, quads[i].ne)
   -- end
 
-  var to_merge : int[sector_precision][sector_precision]
+  var to_merge : int[32][32]
   for i=0,sector_precision do
     for j=0,sector_precision do
       to_merge[i][j] = (i + j*sector_precision + 1) * partition_size
