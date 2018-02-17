@@ -22,16 +22,15 @@ local gee = 100
 local delta = 0.1
 local theta = 0.5
 
-local N = 4
-local sector_precision = 16
-
 struct Config {
   num_bodies : uint,
   random_seed : uint,
   iterations : uint,
   verbose : bool,
   output_dir : rawstring,
-  output_dir_set : bool
+  output_dir_set : bool,
+  parallelism : uint,
+  N : uint,
 }
 
 fspace body {
@@ -60,6 +59,12 @@ terra parse_input_args(conf : Config)
     elseif cstring.strcmp(args.argv[i], "-i") == 0 then
       i = i + 1
       conf.iterations = std.atoi(args.argv[i])
+    elseif cstring.strcmp(args.argv[i], "-p") == 0 then
+      i = i + 1
+      conf.parallelism = std.atoi(args.argv[i])
+    elseif cstring.strcmp(args.argv[i], "-N") == 0 then
+      i = i + 1
+      conf.N = std.atoi(args.argv[i])
     elseif cstring.strcmp(args.argv[i], "-v") == 0 then
       conf.verbose = true
     end
@@ -67,43 +72,30 @@ terra parse_input_args(conf : Config)
   return conf
 end
 
-task init_black_hole(bodies : region(ispace(ptr), body), mass : uint, cx : double, cy : double, sx : double, sy : double, color : uint, index : uint)
-  where writes(bodies)
-do
-  for body in bodies do
-    body.mass_x = cx
-    body.mass_y = cy
-    body.speed_x = sx
-    body.speed_y = sy
-    body.mass = mass
-    body.color = color
-    body.index = index
-  end
-end
-
-task init_star(bodies : region(ispace(ptr), body), num : uint, max_radius : double, cx : double, cy : double, sx : double, sy : double, color : uint, index : uint)
-  where writes(bodies)
+task init_stars(bodies : region(ispace(ptr), body), num : uint, max_radius : double, cx : double, cy : double, sx : double, sy : double, color : uint, partition_start : uint, partition_size : uint)
+  where
+  writes(bodies)
 do
   var total_m = 1.5 * num
   var cube_max_radius = max_radius * max_radius * max_radius
-  
-  var angle = drand48() * 2 * cmath.M_PI
-  var radius = 25 + max_radius * drand48()
-  var x_star = cx + radius * sin(angle)
-  var y_star = cy + radius * cos(angle)
-  var speed = sqrt(gee * num / radius + gee * total_m * radius * radius / cube_max_radius)
-  var speed_x_star = sx + speed * sin(angle + cmath.M_PI / 2)
-  var speed_y_star = sy + speed * cos(angle + cmath.M_PI / 2)
-  var mass_star = 1.0 + drand48()
 
+  var index = partition_start * partition_size
   for body in bodies do
-    body.mass_x = x_star
-    body.mass_y = y_star
-    body.speed_x = speed_x_star
-    body.speed_y = speed_y_star
-    body.mass = mass_star
+    var angle = drand48() * 2 * cmath.M_PI
+    var radius = 25 + max_radius * drand48()
+
+    body.mass_x = cx + radius * sin(angle)
+    body.mass_y = cy + radius * cos(angle)
+
+    var speed = sqrt(gee * num / radius + gee * total_m * radius * radius / cube_max_radius)
+
+    body.speed_x = sx + speed * sin(angle + cmath.M_PI / 2)
+    body.speed_y = sy + speed * cos(angle + cmath.M_PI / 2)
+    body.mass = 1.0 + drand48()
     body.color = color
     body.index = index
+
+    index += 1
   end
 end
 
@@ -112,23 +104,31 @@ task init_2_galaxies(bodies : region(body), conf : Config)
 do
   srand48(conf.random_seed)
 
-  var bodies_partition = partition(equal, bodies, ispace(ptr, conf.num_bodies))
+  var bodies_partition = partition(equal, bodies, ispace(int1d, 8))
 
   var num1 = conf.num_bodies / 8
-  init_black_hole(bodies_partition[0], num1, 0, 0, 0, 0, 0, 0)
-  
+  var num2 = conf.num_bodies - num1
+
+  init_stars(bodies_partition[0], num1, 300, 0, 0, 0, 0, 1, 0, num1)
+
   __demand(__parallel)
-  for i = 1, num1 do
-    init_star(bodies_partition[i], num1, 300, 0, 0, 0, 0, 1, i)
+  for i = 1, 8 do
+    init_stars(bodies_partition[i], num2, 350, -1800, -1200, 0, 0, 2, i, num1)
   end
 
-  var num2 = conf.num_bodies / 8 * 7
-  init_black_hole(bodies_partition[num1], num2, -1800, -1200, 0, 0, 0, num1)
-  
-  __demand(__parallel)
-  for i = num1 + 1, num1 + num2 do
-    init_star(bodies_partition[i], num2, 350, -1800, -1200, 0, 0, 2, i)
-  end
+  bodies[0].mass_x = 0
+  bodies[0].mass_y = 0
+  bodies[0].speed_x = 0
+  bodies[0].speed_y = 0
+  bodies[0].mass = num1
+  bodies[0].color = 0
+
+  bodies[num1].mass_x = -1800
+  bodies[num1].mass_y = -1200
+  bodies[num1].speed_x = 0
+  bodies[num1].speed_y = 0
+  bodies[num1].mass = num2
+  bodies[num1].color = 0
 end
 
 task print_bodies_initial(bodies : region(body))
@@ -142,7 +142,7 @@ do
   c.printf("\n") 
 end
 
-task print_update(iteration : uint, bodies : region(body))
+task print_update(iteration : uint, bodies : region(body), sector_precision : uint)
   where reads(bodies)
 do
   c.printf("Iteration %d\n", iteration + 1)
@@ -171,13 +171,13 @@ do
   end
 end
 
-task assign_sectors(bodies : region(body), min_x : double, min_y : double, size : double)
+task assign_sectors(bodies : region(body), min_x : double, min_y : double, size : double, sector_precision : uint)
   where
   reads(bodies.{mass_x, mass_y, sector}),
   writes(bodies.sector)
 do
   for body in bodies do
-    var sector_x: int64 = cmath.floor((body.mass_x - min_x) / (size / sector_precision))
+    var sector_x : int64 = cmath.floor((body.mass_x - min_x) / (size / sector_precision))
     if (sector_x >= sector_precision) then
       sector_x = sector_x - 1
     end
@@ -191,7 +191,7 @@ do
   end
 end
 
-task size_quad(bodies : region(body), max_size : region(uint), min_x : double, min_y : double, size : double, sector : int1d)
+task size_quad(bodies : region(body), max_size : region(uint), min_x : double, min_y : double, size : double, sector_precision : uint, sector : int1d)
   where reads(bodies.{mass_x, mass_y, index}),
   reads (max_size),
   reduces max(max_size)
@@ -218,11 +218,10 @@ do
   max_size[0] max = max(max_size[0], count(root, true))
 end
 
-task build_quad(bodies : region(body), quads : region(ispace(int1d), quad), min_x : double, min_y : double, size : double, sector : int1d, partition_size: uint)
+task build_quad(bodies : region(body), quads : region(ispace(int1d), quad), min_x : double, min_y : double, size : double, sector_precision : uint, sector : int1d, partition_size: uint)
   where
   reads(bodies.{mass_x, mass_y, mass, index}),
-  reads(quads),
-  writes(quads)
+  reads writes(quads)
 do
   var sector_x = sector % sector_precision
   var sector_y: int64 = cmath.floor(sector / sector_precision)
@@ -249,7 +248,7 @@ do
 end
 
 task calculate_net_force(bodies : region(body), quads : region(ispace(int1d), quad), node_index: int1d, body_ptr : ptr(body, bodies)): uint
-  where
+where
   reads(bodies),
   reduces +(bodies.{force_x, force_y}),
   reads(quads)
@@ -284,9 +283,8 @@ do
 end
 
 task update_body_positions(bodies : region(body), quads : region(ispace(int1d), quad), root_index : uint)
-  where
-  reads(bodies),
-  writes(bodies),
+where
+  reads writes(bodies),
   reads(quads)
 do
   var root = root_index
@@ -299,29 +297,32 @@ do
   end
 end
 
-task run_iteration(bodies : region(body), body_index : ispace(ptr), boundaries : region(boundary), verbose: bool)
+task run_iteration(bodies : region(body), boundaries : region(boundary), conf : Config, sector_precision : uint)
   where
-  reads(bodies),
-  writes(bodies),
-  reads(boundaries),
-  writes(boundaries)
+  reads writes(bodies),
+  reads writes(boundaries)
 do
   boundaries[0] = { min_x = bodies[0].mass_x, min_y = bodies[0].mass_y, max_x = bodies[0].mass_x, max_y = bodies[0].mass_y }
   
-  var bodies_partition = partition(equal, bodies, body_index)
-  for i in body_index do
+  var body_partition_index = ispace(ptr, conf.parallelism)
+
+  var bodies_partition = partition(equal, bodies, body_partition_index)
+  for i in body_partition_index do
     update_boundaries(bodies_partition[i], boundaries)
   end
 
-  var size_x = boundaries[0].max_x - boundaries[0].min_x
-  var size_y = boundaries[0].max_y - boundaries[0].min_y
+  var min_x = boundaries[0].min_x
+  var min_y = boundaries[0].min_y
+  var size_x = boundaries[0].max_x - min_x
+  var size_y = boundaries[0].max_y - min_y
   var size = max(size_x, size_y)
 
-  for i in body_index do
-    assign_sectors(bodies_partition[i], boundaries[0].min_x, boundaries[0].min_y, size)
+  __demand(__parallel)
+  for i in body_partition_index do
+    assign_sectors(bodies_partition[i], min_x, min_y, size, sector_precision)
   end
 
-  if verbose then
+  if conf.verbose then
     c.printf("Calculating required size of quad tree\n")
   end
   
@@ -330,19 +331,16 @@ do
 
   var max_size = region(ispace(ptr, 1), uint)
   max_size[0] = 0
-  for i=0,N do
+  for i=0,conf.N do
     max_size[0] = max_size[0] + pow(4, i)
   end
 
-  var min_x = boundaries[0].min_x
-  var min_y = boundaries[0].min_y
-
   for i in sector_index do
-    size_quad(bodies_by_sector[i], max_size, min_x, min_y, size, i)
+    size_quad(bodies_by_sector[i], max_size, min_x, min_y, size, sector_precision, i)
   end
     
   var partition_size = max_size[0]
-  if verbose then
+  if conf.verbose then
     c.printf("Quad tree size: %d\n", partition_size * (sector_precision * sector_precision + 1))
   end
 
@@ -355,7 +353,7 @@ do
 
   __demand(__parallel)
   for i in sector_index do
-    build_quad(bodies_by_sector[i], quads_partition[i], min_x, min_y, size, i, partition_size)
+    build_quad(bodies_by_sector[i], quads_partition[i], min_x, min_y, size, sector_precision, i, partition_size)
   end
 
   -- for i in quads_index do
@@ -395,7 +393,7 @@ do
   end
 
   __demand(__parallel)
-  for i in body_index do
+  for i in body_partition_index do
     update_body_positions(bodies_partition[i], quads, allocation_index)
   end
 end
@@ -406,6 +404,8 @@ task main()
   conf.random_seed = 213
   conf.iterations = 10
   conf.output_dir_set = false
+  conf.N = 4
+  conf.parallelism = 8
 
   conf = parse_input_args(conf)
   
@@ -415,11 +415,11 @@ task main()
   end
   
   if conf.verbose then
-    c.printf("settings: output dir=%s bodies=%d seed=%d\n\n", conf.output_dir, conf.num_bodies, conf.random_seed)
+    c.printf("settings: bodies=%d iterations=%d parallelism=%d N=%d output_dir=%s seed=%d\n\n",
+      conf.num_bodies, conf.iterations, conf.parallelism, conf.N, conf.output_dir, conf.random_seed)
   end
 
-  var body_index = ispace(ptr, conf.num_bodies)
-  var bodies = region(body_index, body)
+  var bodies = region(ispace(ptr, conf.num_bodies), body)
 
   init_2_galaxies(bodies, conf)
 
@@ -427,15 +427,17 @@ task main()
     print_bodies_initial(bodies)
   end
 
+  var sector_precision : uint = pow(2, conf.N)
+
   for i=0,conf.iterations do
       var boundaries = region(ispace(ptr, 1), boundary)
       fill(bodies.{force_x, force_y}, 0)
-      run_iteration(bodies, body_index, boundaries, conf.verbose)
+      run_iteration(bodies, boundaries, conf, sector_precision)
 
       var boundary = boundaries[0]
       if conf.verbose then
         c.printf("boundaries: min_x=%f min_y=%f max_x=%f max_y=%f\n\n", boundary.min_x, boundary.min_y, boundary.max_x, boundary.max_y)
-        print_update(i, bodies)
+        print_update(i, bodies, sector_precision)
       end
 
       var fp = open(i, conf.output_dir)
