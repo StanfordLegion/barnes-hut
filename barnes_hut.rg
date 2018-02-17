@@ -363,7 +363,11 @@ do
   var to_merge : int[32][32]
   for i=0,sector_precision do
     for j=0,sector_precision do
-      to_merge[i][j] = (i + j*sector_precision + 1) * partition_size
+      if quads[(i + j*sector_precision + 1) * partition_size].total > 0 then
+        to_merge[i][j] = (i + j*sector_precision + 1) * partition_size
+      else
+        to_merge[i][j] = -1
+      end
     end
   end
   
@@ -384,7 +388,11 @@ do
           end
         end
 
-        to_merge[i][j] = allocation_index
+        if quads[allocation_index].total > 0 then
+          to_merge[i][j] = allocation_index
+        else
+          to_merge[i][j] = -1
+        end
 
         allocation_index = allocation_index + 1
       end
