@@ -32,7 +32,8 @@ struct Config {
   output_dir_set : bool,
   parallelism : uint,
   N : uint,
-  leaf_size: uint
+  leaf_size : uint
+  fixed_partition_size : uint,
 }
 
 fspace body {
@@ -70,6 +71,9 @@ terra parse_input_args(conf : Config)
     elseif cstring.strcmp(args.argv[i], "-l") == 0 then
       i = i + 1
       conf.leaf_size = std.atoi(args.argv[i])
+    elseif cstring.strcmp(args.argv[i], "-x") == 0 then
+      i = i + 1
+      conf.fixed_partition_size = std.atoi(args.argv[i])
     elseif cstring.strcmp(args.argv[i], "-v") == 0 then
       conf.verbose = true
     end
@@ -347,27 +351,30 @@ do
   for i in body_partition_index do
     assign_sectors(bodies_partition[i], min_x, min_y, size, sector_precision)
   end
-
-  if conf.verbose then
-    c.printf("Calculating required size of quad tree\n")
-  end
   
   var sector_index = ispace(int1d, sector_precision * sector_precision)
   var bodies_by_sector = partition(bodies.sector, sector_index)
 
-  var max_size = region(ispace(ptr, 1), uint)
-  max_size[0] = 0
-  for i=0,conf.N do
-    max_size[0] = max_size[0] + pow(4, i)
-  end
+  var partition_size = conf.fixed_partition_size
+  if conf.fixed_partition_size == -1 then
+    if conf.verbose then
+      c.printf("Calculating required size of quad tree\n")
+    end
 
-  for i in sector_index do
-    size_quad(bodies_by_sector[i], max_size, min_x, min_y, size, sector_precision, conf.leaf_size, i)
-  end
-    
-  var partition_size = max_size[0]
-  if conf.verbose then
-    c.printf("Quad tree size: %d\n", partition_size * (sector_precision * sector_precision + 1))
+    var max_size = region(ispace(ptr, 1), uint)
+    max_size[0] = 0
+    for i=0,conf.N do
+      max_size[0] = max_size[0] + pow(4, i)
+    end
+
+    for i in sector_index do
+      size_quad(bodies_by_sector[i], max_size, min_x, min_y, size, sector_precision, conf.leaf_size, i)
+    end
+      
+    partition_size = max_size[0]
+    if conf.verbose then
+      c.printf("Quad tree size: %d\n", partition_size * (sector_precision * sector_precision + 1))
+    end
   end
 
   var quads_split = ispace(int1d, sector_precision * sector_precision + 1)
@@ -441,6 +448,7 @@ task main()
   conf.leaf_size = 32
   conf.N = 4
   conf.parallelism = 8
+  conf.fixed_partition_size = -1
   conf.verbose = false
 
   conf = parse_input_args(conf)
