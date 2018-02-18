@@ -264,37 +264,38 @@ where
   reduces +(bodies.{force_x, force_y}),
   reads(quads)
 do
-  var node = quads[node_index]
+  var traverse_list : int1d[1024]
+  traverse_list[0] = node_index
+  var traverse_index = 0
 
-  if node.type == 2 then
-    var dist = sqrt((body_ptr.mass_x - node.mass_x) * (body_ptr.mass_x - node.mass_x) + (body_ptr.mass_y - node.mass_y) * (body_ptr.mass_y - node.mass_y))
-
-    if dist == 0 or node.size / dist >= theta then
-      calculate_net_force(bodies, quads, node.sw, body_ptr)
-      calculate_net_force(bodies, quads, node.nw, body_ptr)
-      calculate_net_force(bodies, quads, node.se, body_ptr)
-      calculate_net_force(bodies, quads, node.ne, body_ptr)
-      return 1
-    end
-
-    var d_force = gee * body_ptr.mass * node.mass / (dist * dist)
-    var xn = (node.mass_x - body_ptr.mass_x) / dist
-    var yn = (node.mass_y - body_ptr.mass_y) / dist
-    var d_force_x = d_force * xn
-    var d_force_y = d_force * yn
-
-    body_ptr.force_x += d_force_x
-    body_ptr.force_y += d_force_y
-
-    return 1
-  end
-
-  var cur_index : int = node_index
-  while cur_index ~= -1 do
-    if node.index ~= body_ptr.index then
+  while traverse_index >= 0 do
+    var cur_index : int = traverse_list[traverse_index]
+    traverse_index = traverse_index - 1
+    if quads[cur_index].type == 2 then
       var dist = sqrt((body_ptr.mass_x - quads[cur_index].mass_x) * (body_ptr.mass_x - quads[cur_index].mass_x) + (body_ptr.mass_y - quads[cur_index].mass_y) * (body_ptr.mass_y - quads[cur_index].mass_y))
-      
-      if dist > epsilon then
+
+      if dist == 0 or quads[cur_index].size / dist >= theta then
+        assert(traverse_index < 1020, "possible traverse list overflow")
+        if quads[cur_index].sw ~= 1 then
+          traverse_list[traverse_index + 1] = quads[cur_index].sw
+          traverse_index += 1
+        end
+
+        if quads[cur_index].nw ~= 1 then
+          traverse_list[traverse_index + 1] = quads[cur_index].nw
+          traverse_index += 1
+        end
+
+        if quads[cur_index].se ~= 1 then
+          traverse_list[traverse_index + 1] = quads[cur_index].se
+          traverse_index += 1
+        end
+
+        if quads[cur_index].ne ~= 1 then
+          traverse_list[traverse_index + 1] = quads[cur_index].ne
+          traverse_index += 1
+        end
+      else
         var d_force = gee * body_ptr.mass * quads[cur_index].mass / (dist * dist)
         var xn = (quads[cur_index].mass_x - body_ptr.mass_x) / dist
         var yn = (quads[cur_index].mass_y - body_ptr.mass_y) / dist
@@ -303,10 +304,27 @@ do
 
         body_ptr.force_x += d_force_x
         body_ptr.force_y += d_force_y
-      end 
-    end
+      end
+    else
+      while cur_index ~= -1 do
+        if quads[cur_index].index ~= body_ptr.index then
+          var dist = sqrt((body_ptr.mass_x - quads[cur_index].mass_x) * (body_ptr.mass_x - quads[cur_index].mass_x) + (body_ptr.mass_y - quads[cur_index].mass_y) * (body_ptr.mass_y - quads[cur_index].mass_y))
 
-    cur_index = quads[cur_index].next_in_leaf
+          if dist > epsilon then
+            var d_force = gee * body_ptr.mass * quads[cur_index].mass / (dist * dist)
+            var xn = (quads[cur_index].mass_x - body_ptr.mass_x) / dist
+            var yn = (quads[cur_index].mass_y - body_ptr.mass_y) / dist
+            var d_force_x = d_force * xn
+            var d_force_y = d_force * yn
+
+            body_ptr.force_x += d_force_x
+            body_ptr.force_y += d_force_y
+          end
+        end
+
+        cur_index = quads[cur_index].next_in_leaf
+      end
+    end
   end
 
   return 1
