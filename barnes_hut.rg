@@ -21,6 +21,7 @@ rawset(_G, "srand48", std.srand48)
 local gee = 100
 local delta = 0.1
 local theta = 0.5
+local epsilon = 0.00001
 
 struct Config {
   num_bodies : uint,
@@ -195,7 +196,7 @@ do
   end
 end
 
-task size_quad(bodies : region(body), max_size : region(uint), min_x : double, min_y : double, size : double, sector_precision : uint, leaf_size: uint, sector : int1d)
+task size_quad(bodies : region(body), max_size : region(uint), min_x : double, min_y : double, size : double, sector_precision : uint, leaf_size : uint, sector : int1d)
   where reads(bodies.{mass_x, mass_y, index}),
   reads (max_size),
   reduces max(max_size)
@@ -224,7 +225,7 @@ do
   max_size[0] max = max(max_size[0], num_quads)
 end
 
-task build_quad(bodies : region(body), quads : region(ispace(int1d), quad), min_x : double, min_y : double, size : double, sector_precision : uint, sector : int1d, partition_size: uint)
+task build_quad(bodies : region(body), quads : region(ispace(int1d), quad), min_x : double, min_y : double, size : double, sector_precision : uint, leaf_size : uint, sector : int1d, partition_size: uint)
   where
   reads(bodies.{mass_x, mass_y, mass, index}),
   reads writes(quads)
@@ -249,7 +250,7 @@ do
     quads[index].total = 1
     quads[index].type = 1
     quads[index].index = body.index
-    index = add_node(quads, root_index, index, index) + 1
+    index = add_node(quads, root_index, index, leaf_size, index) + 1
   end
 end
 
@@ -260,31 +261,50 @@ where
   reads(quads)
 do
   var node = quads[node_index]
-  if node.type == 1 and node.index == body_ptr.index then
+
+  if node.type == 2 then
+    var dist = sqrt((body_ptr.mass_x - node.mass_x) * (body_ptr.mass_x - node.mass_x) + (body_ptr.mass_y - node.mass_y) * (body_ptr.mass_y - node.mass_y))
+
+    if dist == 0 or node.size / dist >= theta then
+      calculate_net_force(bodies, quads, node.sw, body_ptr)
+      calculate_net_force(bodies, quads, node.nw, body_ptr)
+      calculate_net_force(bodies, quads, node.se, body_ptr)
+      calculate_net_force(bodies, quads, node.ne, body_ptr)
+      return 1
+    end
+
+    var d_force = gee * body_ptr.mass * node.mass / (dist * dist)
+    var xn = (node.mass_x - body_ptr.mass_x) / dist
+    var yn = (node.mass_y - body_ptr.mass_y) / dist
+    var d_force_x = d_force * xn
+    var d_force_y = d_force * yn
+
+    body_ptr.force_x += d_force_x
+    body_ptr.force_y += d_force_y
+
     return 1
   end
 
-  var dist = sqrt((body_ptr.mass_x - node.mass_x) * (body_ptr.mass_x - node.mass_x) + (body_ptr.mass_y - node.mass_y) * (body_ptr.mass_y - node.mass_y))
-  if dist == 0 then
-    return 1
+  var cur_index : int = node_index
+  while cur_index ~= -1 do
+    if node.index ~= body_ptr.index then
+      var dist = sqrt((body_ptr.mass_x - quads[cur_index].mass_x) * (body_ptr.mass_x - quads[cur_index].mass_x) + (body_ptr.mass_y - quads[cur_index].mass_y) * (body_ptr.mass_y - quads[cur_index].mass_y))
+      
+      if dist > epsilon then
+        var d_force = gee * body_ptr.mass * quads[cur_index].mass / (dist * dist)
+        var xn = (quads[cur_index].mass_x - body_ptr.mass_x) / dist
+        var yn = (quads[cur_index].mass_y - body_ptr.mass_y) / dist
+        var d_force_x = d_force * xn
+        var d_force_y = d_force * yn
+
+        body_ptr.force_x += d_force_x
+        body_ptr.force_y += d_force_y
+      end 
+    end
+
+    cur_index = quads[cur_index].next_in_leaf
   end
 
-  if node.type == 2 and node.size / dist >= theta then
-    calculate_net_force(bodies, quads, node.sw, body_ptr)
-    calculate_net_force(bodies, quads, node.nw, body_ptr)
-    calculate_net_force(bodies, quads, node.se, body_ptr)
-    calculate_net_force(bodies, quads, node.ne, body_ptr)
-    return 1
-  end
-
-  var d_force = gee * body_ptr.mass * node.mass / (dist * dist)
-  var xn = (node.mass_x - body_ptr.mass_x) / dist
-  var yn = (node.mass_y - body_ptr.mass_y) / dist
-  var d_force_x = d_force * xn
-  var d_force_y = d_force * yn
-
-  body_ptr.force_x += d_force_x
-  body_ptr.force_y += d_force_y
   return 1
 end
 
@@ -353,13 +373,13 @@ do
   var quads_split = ispace(int1d, sector_precision * sector_precision + 1)
   var quads_index = ispace(int1d, partition_size * (sector_precision * sector_precision + 1))
   var quads = region(quads_index, quad)
-  fill(quads.{nw, sw, ne, se}, -1)
+  fill(quads.{nw, sw, ne, se, next_in_leaf}, -1)
 
   var quads_partition = partition(equal, quads, quads_split)
 
   __demand(__parallel)
   for i in sector_index do
-    build_quad(bodies_by_sector[i], quads_partition[i], min_x, min_y, size, sector_precision, i, partition_size)
+    build_quad(bodies_by_sector[i], quads_partition[i], min_x, min_y, size, sector_precision, conf.leaf_size, i, partition_size)
   end
 
   -- for i in quads_index do
@@ -390,7 +410,7 @@ do
 
         for k=0,2 do
           if to_merge[2*i+k][2*j+k] ~= -1 and quads[to_merge[2*i+k][2*j+k]].total > 0 then
-            add_node(quads, allocation_index, to_merge[2*i+k][2*j+k], 0)
+            add_node(quads, allocation_index, to_merge[2*i+k][2*j+k], 0, 1)
           end
         end
 
