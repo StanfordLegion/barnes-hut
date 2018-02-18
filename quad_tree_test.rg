@@ -11,43 +11,48 @@ terra double_equal(a: double, b: double)
 end
 
 task test_quad_sizer()
-  var root = create_placeholder()
+  var chunk = create_quad_chunk(10)
+  var root = init_placeholder(chunk)
   root.center_x = 1
   root.center_y = 1
   root.size = 2
   root.type = 2
 
-  var body_quad = create_placeholder()
+  var body_quad = init_placeholder(chunk)
   body_quad.mass_x = 0.5
   body_quad.mass_y = 1.5
   body_quad.type = 1
+  body_quad.leaf_count = 0
 
-  add_placeholder(root, body_quad)
-  assert(count(root, false) == 2, "first insert failed")
+  add_placeholder(root, body_quad, chunk, 1)
+  assert(count(chunk, false) == 2, "first insert failed")
 
-  body_quad = create_placeholder()
+  body_quad = init_placeholder(chunk)
   body_quad.mass_x = 0.3
   body_quad.mass_y = 1.7
   body_quad.type = 1
+  body_quad.leaf_count = 0
 
-  add_placeholder(root, body_quad)
-  assert(count(root, false) == 4, "second insert failed")
+  add_placeholder(root, body_quad, chunk, 1)
+  assert(count(chunk, false) == 4, "second insert failed")
 
-  body_quad = create_placeholder()
+  body_quad = init_placeholder(chunk)
   body_quad.mass_x = 1.8
   body_quad.mass_y = 0.8
   body_quad.type = 1
+  body_quad.leaf_count = 0
 
-  add_placeholder(root, body_quad)
-  assert(count(root, false) == 5, "third insert failed")
+  add_placeholder(root, body_quad, chunk, 1)
+  assert(count(chunk, false) == 5, "third insert failed")
 
-  body_quad = create_placeholder()
+  body_quad = init_placeholder(chunk)
   body_quad.mass_x = 0.2
   body_quad.mass_y = 1.8
   body_quad.type = 1
+  body_quad.leaf_count = 0
 
-  add_placeholder(root, body_quad)
-  assert(count(root, true) == 7, "fourth insert failed")
+  add_placeholder(root, body_quad, chunk, 1)
+  assert(count(chunk, true) == 7, "fourth insert failed")
 end
 
 task test_quad_tree()
@@ -119,13 +124,14 @@ task test_divergence()
   quads[1].type = 1
   quads[1].total = 1
 
-  var root = create_placeholder()
+  var chunk = create_quad_chunk(10)
+  var root = init_placeholder(chunk)
   root.center_x = quads[0].center_x
   root.center_y = quads[0].center_y
   root.size = quads[0].size
   root.type = 2
 
-  var body_quad = create_placeholder()
+  var body_quad = init_placeholder(chunk)
   body_quad.mass_x = quads[1].mass_x
   body_quad.mass_y = quads[1].mass_y
   body_quad.type = 1
@@ -134,8 +140,8 @@ task test_divergence()
   assert(index == 1, "first insert failed")
   assert(quads[0].ne == 1, "first insert ne failed")
 
-  add_placeholder(root, body_quad)
-  assert(count(root, false) == 2, "first insert failed")
+  add_placeholder(root, body_quad, chunk, 1)
+  assert(count(chunk, false) == 2, "first insert failed")
   assert(root.ne == body_quad, "first insert ne failed")
 
   quads[index + 1].mass_x = -2017.915453
@@ -144,7 +150,7 @@ task test_divergence()
   quads[index + 1].type = 1
   quads[index + 1].total = 1
 
-  body_quad = create_placeholder()
+  body_quad = init_placeholder(chunk)
   body_quad.mass_x = quads[index + 1].mass_x
   body_quad.mass_y = quads[index + 1].mass_y
   body_quad.type = 1
@@ -153,8 +159,8 @@ task test_divergence()
   assert(index == 2, "second insert failed")
   assert(quads[0].se == 2, "second insert se failed")
 
-  add_placeholder(root, body_quad)
-  assert(count(root, false) == 3, "second insert failed")
+  add_placeholder(root, body_quad, chunk, 1)
+  assert(count(chunk, false) == 3, "second insert failed")
   assert(root.se == body_quad, "second insert se failed")
 
   quads[index + 1].mass_x = -1642.261817
@@ -164,7 +170,7 @@ task test_divergence()
   quads[index + 1].total = 1
 
   var old_body_quad = body_quad
-  body_quad = create_placeholder()
+  body_quad = init_placeholder(chunk)
   body_quad.mass_x = quads[index + 1].mass_x
   body_quad.mass_y = quads[index + 1].mass_y
   body_quad.type = 1
@@ -174,10 +180,10 @@ task test_divergence()
   assert(quads[quads[0].se].nw == 2, "third insert se.nw failed")
   assert(quads[quads[0].se].se == 3, "third insert se.se failed")
 
-  add_placeholder(root, body_quad)
+  add_placeholder(root, body_quad, chunk, 1)
   assert(root.se.nw == old_body_quad, "second insert se.nw failed")
   assert(root.se.se == body_quad, "second insert se.se failed")
-  assert(count(root, true) == 5, "second insert failed")
+  assert(count(chunk, true) == 5, "second insert failed")
 end
 
 task main()

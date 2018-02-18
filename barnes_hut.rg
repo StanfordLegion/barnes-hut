@@ -31,6 +31,7 @@ struct Config {
   output_dir_set : bool,
   parallelism : uint,
   N : uint,
+  leaf_size: uint
 }
 
 fspace body {
@@ -65,6 +66,9 @@ terra parse_input_args(conf : Config)
     elseif cstring.strcmp(args.argv[i], "-N") == 0 then
       i = i + 1
       conf.N = std.atoi(args.argv[i])
+    elseif cstring.strcmp(args.argv[i], "-l") == 0 then
+      i = i + 1
+      conf.leaf_size = std.atoi(args.argv[i])
     elseif cstring.strcmp(args.argv[i], "-v") == 0 then
       conf.verbose = true
     end
@@ -191,31 +195,33 @@ do
   end
 end
 
-task size_quad(bodies : region(body), max_size : region(uint), min_x : double, min_y : double, size : double, sector_precision : uint, sector : int1d)
+task size_quad(bodies : region(body), max_size : region(uint), min_x : double, min_y : double, size : double, sector_precision : uint, leaf_size: uint, sector : int1d)
   where reads(bodies.{mass_x, mass_y, index}),
   reads (max_size),
   reduces max(max_size)
 do
+  var chunk = create_quad_chunk(512)
   var sector_x = sector % sector_precision
   var sector_y: int64 = cmath.floor(sector / sector_precision)
   var center_x = min_x + (sector_x + 0.5) * size / sector_precision
   var center_y = min_y + (sector_y + 0.5) * size / sector_precision
 
-  var root = create_placeholder()
+  var root = init_placeholder(chunk)
   root.center_x = center_x
   root.center_y = center_y
   root.size = size / sector_precision
   root.type = 2
 
   for body in bodies do
-    var body_quad = create_placeholder()
+    var body_quad = init_placeholder(chunk)
     body_quad.mass_x = body.mass_x
     body_quad.mass_y = body.mass_y
     body_quad.type = 1
-    add_placeholder(root, body_quad)
+    add_placeholder(root, body_quad, chunk, leaf_size)
   end
 
-  max_size[0] max = max(max_size[0], count(root, true))
+  var num_quads = count(chunk, true)
+  max_size[0] max = max(max_size[0], num_quads)
 end
 
 task build_quad(bodies : region(body), quads : region(ispace(int1d), quad), min_x : double, min_y : double, size : double, sector_precision : uint, sector : int1d, partition_size: uint)
@@ -336,7 +342,7 @@ do
   end
 
   for i in sector_index do
-    size_quad(bodies_by_sector[i], max_size, min_x, min_y, size, sector_precision, i)
+    size_quad(bodies_by_sector[i], max_size, min_x, min_y, size, sector_precision, conf.leaf_size, i)
   end
     
   var partition_size = max_size[0]
@@ -412,6 +418,7 @@ task main()
   conf.random_seed = 213
   conf.iterations = 10
   conf.output_dir_set = false
+  conf.leaf_size = 32
   conf.N = 4
   conf.parallelism = 8
   conf.verbose = false
@@ -419,8 +426,8 @@ task main()
   conf = parse_input_args(conf)
   
   if conf.verbose then
-    c.printf("settings: bodies=%d iterations=%d parallelism=%d N=%d seed=%d\n\n",
-      conf.num_bodies, conf.iterations, conf.parallelism, conf.N, conf.random_seed)
+    c.printf("settings: bodies=%d iterations=%d parallelism=%d N=%d leaf_size=%d seed=%d\n\n",
+      conf.num_bodies, conf.iterations, conf.parallelism, conf.N, conf.leaf_size, conf.random_seed)
   end
 
   var bodies = region(ispace(ptr, conf.num_bodies), body)
