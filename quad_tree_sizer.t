@@ -48,15 +48,15 @@ terra init_placeholder(chunk : &quad_chunk): &quad_placeholder
     new_chunk.counter = chunk.size
   end
 
-  chunk.counter = chunk.counter + 1
-
   chunk.placeholders[chunk.counter].nw = nil
   chunk.placeholders[chunk.counter].sw = nil
   chunk.placeholders[chunk.counter].ne = nil
   chunk.placeholders[chunk.counter].se = nil
   chunk.placeholders[chunk.counter].next_in_leaf = nil
+
+  chunk.counter = chunk.counter + 1
   
-  return &chunk.placeholders[chunk.counter]
+  return &chunk.placeholders[chunk.counter - 1]
 end
 
 terra count(chunk : &quad_chunk, free : bool): uint
