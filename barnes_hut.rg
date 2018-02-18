@@ -408,23 +408,19 @@ end
 
 task main()
   var conf : Config
-  conf.num_bodies = 128
+  conf.num_bodies = 16384
   conf.random_seed = 213
   conf.iterations = 10
   conf.output_dir_set = false
   conf.N = 4
   conf.parallelism = 8
+  conf.verbose = false
 
   conf = parse_input_args(conf)
   
-  if not conf.output_dir_set then
-    c.printf("output dir must be specified\n")
-    c.exit(-1)
-  end
-  
   if conf.verbose then
-    c.printf("settings: bodies=%d iterations=%d parallelism=%d N=%d output_dir=%s seed=%d\n\n",
-      conf.num_bodies, conf.iterations, conf.parallelism, conf.N, conf.output_dir, conf.random_seed)
+    c.printf("settings: bodies=%d iterations=%d parallelism=%d N=%d seed=%d\n\n",
+      conf.num_bodies, conf.iterations, conf.parallelism, conf.N, conf.random_seed)
   end
 
   var bodies = region(ispace(ptr, conf.num_bodies), body)
@@ -442,32 +438,35 @@ task main()
       fill(bodies.{force_x, force_y}, 0)
       run_iteration(bodies, boundaries, conf, sector_precision)
 
-      var boundary = boundaries[0]
       if conf.verbose then
+        var boundary = boundaries[0]
         c.printf("boundaries: min_x=%f min_y=%f max_x=%f max_y=%f\n\n", boundary.min_x, boundary.min_y, boundary.max_x, boundary.max_y)
         print_update(i, bodies, sector_precision)
       end
 
-      var fp = open(i, conf.output_dir)
-      c.fprintf(fp, "<svg viewBox=\"0 0 850 850\" xmlns=\"http://www.w3.org/2000/svg\">")
+      if conf.output_dir_set then
+        var fp = open(i, conf.output_dir)
+        c.fprintf(fp, "<svg viewBox=\"0 0 850 850\" xmlns=\"http://www.w3.org/2000/svg\">")
 
-      var size_x = boundary.max_x - boundary.min_x
-      var size_y = boundary.max_y - boundary.min_y
-      var size = max(size_x, size_y)
-      var scale = 800.0 / size
+        var boundary = boundaries[0]
+        var size_x = boundary.max_x - boundary.min_x
+        var size_y = boundary.max_y - boundary.min_y
+        var size = max(size_x, size_y)
+        var scale = 800.0 / size
 
-      for body in bodies do
-        var color = "black"
-        if body.color == 1 then
-          color = "blue"
-        elseif body.color == 2 then
-          color = "orange"
+        for body in bodies do
+          var color = "black"
+          if body.color == 1 then
+            color = "blue"
+          elseif body.color == 2 then
+            color = "orange"
+          end
+          c.fprintf(fp, "<circle cx=\"%f\" cy=\"%f\" r=\"10\" fill=\"%s\" />", (body.mass_x - boundary.min_x) * scale + 25,  (body.mass_y - boundary.min_y) * scale + 25, color)
         end
-        c.fprintf(fp, "<circle cx=\"%f\" cy=\"%f\" r=\"10\" fill=\"%s\" />", (body.mass_x - boundary.min_x) * scale + 25,  (body.mass_y - boundary.min_y) * scale + 25, color)
-      end
 
-      c.fprintf(fp, "</svg>")
-      c.fclose(fp)
+        c.fprintf(fp, "</svg>")
+        c.fclose(fp)
+      end
   end
 end
 regentlib.start(main)
