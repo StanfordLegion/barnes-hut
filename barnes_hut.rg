@@ -596,13 +596,46 @@ do
         quads[allocation_index].center_y = min_y + size / next_level * (j + 0.5)
         quads[allocation_index].type = 2
 
-        for k=0,2 do
-          if to_merge[2*i+k][2*j+k] ~= -1 and quads[to_merge[2*i+k][2*j+k]].total > 0 then
-            add_node(quads, allocation_index, to_merge[2*i+k][2*j+k], 0, 1)
-          end
+        quads[allocation_index].mass = 0
+        quads[allocation_index].mass_x = 0
+        quads[allocation_index].mass_y = 0
+        quads[allocation_index].total = 0
+
+        if to_merge[2*i][2*j] ~= -1 then
+          quads[allocation_index].sw = to_merge[2*i][2*j]
+          quads[allocation_index].mass += quads[to_merge[2*i][2*j]].mass
+          quads[allocation_index].mass_x += quads[to_merge[2*i][2*j]].mass_x * quads[to_merge[2*i][2*j]].mass
+          quads[allocation_index].mass_y += quads[to_merge[2*i][2*j]].mass_y * quads[to_merge[2*i][2*j]].mass
+          quads[allocation_index].total += quads[to_merge[2*i][2*j]].total
+        end
+
+        if to_merge[2*i][2*j+1] ~= -1 then
+          quads[allocation_index].nw = to_merge[2*i][2*j+1]
+          quads[allocation_index].mass += quads[to_merge[2*i][2*j+1]].mass
+          quads[allocation_index].mass_x += quads[to_merge[2*i][2*j+1]].mass_x * quads[to_merge[2*i][2*j+1]].mass
+          quads[allocation_index].mass_y += quads[to_merge[2*i][2*j+1]].mass_y * quads[to_merge[2*i][2*j+1]].mass
+          quads[allocation_index].total += quads[to_merge[2*i][2*j+1]].total
+        end
+
+        if to_merge[2*i+1][2*j] ~= -1 then
+          quads[allocation_index].se = to_merge[2*i+1][2*j]
+          quads[allocation_index].mass += quads[to_merge[2*i+1][2*j]].mass
+          quads[allocation_index].mass_x += quads[to_merge[2*i+1][2*j]].mass_x * quads[to_merge[2*i+1][2*j]].mass
+          quads[allocation_index].mass_y += quads[to_merge[2*i+1][2*j]].mass_y * quads[to_merge[2*i+1][2*j]].mass
+          quads[allocation_index].total += quads[to_merge[2*i+1][2*j]].total
+        end
+
+        if to_merge[2*i+1][2*j+1] ~= -1 then
+          quads[allocation_index].ne = to_merge[2*i+1][2*j+1]
+          quads[allocation_index].mass += quads[to_merge[2*i+1][2*j+1]].mass
+          quads[allocation_index].mass_x += quads[to_merge[2*i+1][2*j+1]].mass_x * quads[to_merge[2*i+1][2*j+1]].mass
+          quads[allocation_index].mass_y += quads[to_merge[2*i+1][2*j+1]].mass_y * quads[to_merge[2*i+1][2*j+1]].mass
+          quads[allocation_index].total += quads[to_merge[2*i+1][2*j+1]].total
         end
 
         if quads[allocation_index].total > 0 then
+          quads[allocation_index].mass_x = quads[allocation_index].mass_x / quads[allocation_index].mass
+          quads[allocation_index].mass_y = quads[allocation_index].mass_y / quads[allocation_index].mass
           to_merge[i][j] = allocation_index
         else
           to_merge[i][j] = -1
