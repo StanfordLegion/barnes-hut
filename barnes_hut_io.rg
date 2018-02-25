@@ -133,7 +133,7 @@ do
   c.fclose(fp)
 end
 
-task print_bodies_initial(bodies : region(ispace(int1d), body), conf : Config)
+task print_bodies_csv_initial(bodies : region(ispace(int1d), body), conf : Config)
   where reads(bodies.{index, mass_x, mass_y, speed_x, speed_y, mass})
 do
   var output_path : int8[1000]
@@ -147,13 +147,41 @@ do
   c.fclose(fp)
 end
 
-task main()
-  var conf = parse_input_args()
-  var num_bodies = get_number_of_bodies(conf)
-  c.printf("Loading %d bodies\n", num_bodies)
-  var bodies = region(ispace(int1d, num_bodies), body)
+task print_bodies_csv_update(bodies : region(ispace(int1d), body), conf : Config, time_step : uint)
+  where reads(bodies.{index, mass_x, mass_y, speed_x, speed_y})
+do
+  var output_path : int8[1000]
+  c.sprintf([&int8](output_path), "%s/%d.csv", conf.csv_dir, time_step)
 
-  load_bodies(bodies, conf, num_bodies)
-  print_bodies_initial(bodies, conf)
+  var fp = c.fopen(output_path, "w")
+  for body in bodies do
+    c.fprintf(fp, "%d,%f,%f,%f,%f\n", body.index, body.mass_x, body.mass_y, body.speed_x, body.speed_y)
+  end
+
+  c.fclose(fp)
 end
-regentlib.start(main)
+
+task print_bodies_svg(bodies : region(ispace(int1d), body), boundaries : region(boundary), conf : Config, time_step : uint)
+  where
+    reads(bodies.{index, mass_x, mass_y, speed_x, speed_y}),
+    reads(boundaries)
+do
+  var output_path : int8[1000]
+  c.sprintf([&int8](output_path), "%s/%d.svg", conf.svg_dir, time_step)
+
+  var fp = c.fopen(output_path, "w")
+  c.fprintf(fp, "<svg viewBox=\"0 0 850 850\" xmlns=\"http://www.w3.org/2000/svg\">")
+
+  var boundary = boundaries[0]
+  var size_x = boundary.max_x - boundary.min_x
+  var size_y = boundary.max_y - boundary.min_y
+  var size = max(size_x, size_y)
+  var scale = 800.0 / size
+
+  for body in bodies do
+    c.fprintf(fp, "<circle cx=\"%f\" cy=\"%f\" r=\"10\" fill=\"blue\" />", (body.mass_x - boundary.min_x) * scale + 25,  (body.mass_y - boundary.min_y) * scale + 25)
+  end
+
+  c.fprintf(fp, "</svg>")
+  c.fclose(fp)
+end

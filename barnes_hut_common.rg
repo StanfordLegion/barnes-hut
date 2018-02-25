@@ -5,3 +5,7 @@ fspace body {
   sector : int1d,
   index : uint,
 }
+
+fspace boundary {
+  {min_x, min_y, max_x, max_y} : double
+}
