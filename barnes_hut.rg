@@ -15,21 +15,20 @@ local std = terralib.includec("stdlib.h")
 local BarnesHitIO = require("barnes_hut_io")
 local QuadTreeSizer = require("quad_tree_sizer")
 
-rawset(_G, "drand48", std.drand48)
-rawset(_G, "srand48", std.srand48)
-
 local gee = 100
 local delta = 0.1
 local theta = 0.5
 local epsilon = 0.00001
 
 struct Config {
-  num_bodies : uint,
-  random_seed : uint,
   iterations : uint,
   verbose : bool,
-  output_dir : rawstring,
-  output_dir_set : bool,
+  data_dir : rawstring,
+  data_dir_set : bool,
+  svg_dir : rawstring,
+  svg_dir_set : bool,
+  csv_dir : rawstring,
+  csv_dir_set : bool,
   parallelism : uint,
   N : uint,
   leaf_size : uint
@@ -49,16 +48,18 @@ fspace boundary {
 terra parse_input_args(conf : Config)
   var args = c.legion_runtime_get_input_args()
   for i = 0, args.argc do
-    if cstring.strcmp(args.argv[i], "-o") == 0 then
+    if cstring.strcmp(args.argv[i], "-d") == 0 then
       i = i + 1
-      conf.output_dir = args.argv[i]
-      conf.output_dir_set = true
-    elseif cstring.strcmp(args.argv[i], "-b") == 0 then
+      conf.data_dir = args.argv[i]
+      conf.data_dir_set = true
+    elseif cstring.strcmp(args.argv[i], "-c") == 0 then
       i = i + 1
-      conf.num_bodies = std.atoi(args.argv[i])
+      conf.csv_dir = args.argv[i]
+      conf.csv_dir_set = true
     elseif cstring.strcmp(args.argv[i], "-s") == 0 then
       i = i + 1
-      conf.random_seed = std.atoi(args.argv[i])
+      conf.svg_dir = args.argv[i]
+      conf.svg_dir_set = true
     elseif cstring.strcmp(args.argv[i], "-i") == 0 then
       i = i + 1
       conf.iterations = std.atoi(args.argv[i])
@@ -81,37 +82,10 @@ terra parse_input_args(conf : Config)
   return conf
 end
 
-task init_stars(bodies : region(ispace(ptr), body), num : uint, max_radius : double, cx : double, cy : double, sx : double, sy : double, color : uint, partition_start : uint, partition_size : uint)
-  where
-  writes(bodies)
-do
-  var total_m = 1.5 * num
-  var cube_max_radius = max_radius * max_radius * max_radius
-
-  var index = partition_start * partition_size
-  for body in bodies do
-    var angle = drand48() * 2 * cmath.M_PI
-    var radius = 25 + max_radius * drand48()
-
-    body.mass_x = cx + radius * sin(angle)
-    body.mass_y = cy + radius * cos(angle)
-
-    var speed = sqrt(gee * num / radius + gee * total_m * radius * radius / cube_max_radius)
-
-    body.speed_x = sx + speed * sin(angle + cmath.M_PI / 2)
-    body.speed_y = sy + speed * cos(angle + cmath.M_PI / 2)
-    body.mass = 1.0 + drand48()
-    body.color = color
-    body.index = index
-
-    index += 1
-  end
-end
-
-task init_2_galaxies(bodies : region(body), conf : Config)
+task load_bodies(bodies : region(body), conf : Config)
   where writes(bodies)
 do
-  srand48(conf.random_seed)
+  
 
   var bodies_partition = partition(equal, bodies, ispace(int1d, 8))
 
@@ -658,7 +632,9 @@ task main()
   conf.num_bodies = 16384
   conf.random_seed = 213
   conf.iterations = 10
-  conf.output_dir_set = false
+  conf.data_dir_set = false
+  conf.csv_dir_set = false
+  conf.svg_dir_set = false
   conf.leaf_size = 32
   conf.N = 4
   conf.parallelism = 8
@@ -674,6 +650,7 @@ task main()
 
   var bodies = region(ispace(ptr, conf.num_bodies), body)
 
+  c.fopen (conf.input_d, "r" );
   init_2_galaxies(bodies, conf)
 
   if conf.verbose then
