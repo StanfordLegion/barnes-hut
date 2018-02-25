@@ -11,7 +11,7 @@ fspace quad {
   {ne, nw, se, sw, next_in_leaf} : int,
 }
 
-task build_quad(bodies : region(ispace(int1d), body), quads : region(ispace(int1d), quad), min_x : double, min_y : double, size : double, sector_precision : uint, leaf_size : uint, sector : int1d, partition_size: uint)
+task build_quad(bodies : region(body), quads : region(ispace(int1d), quad), min_x : double, min_y : double, size : double, sector_precision : uint, leaf_size : uint, sector : int1d, partition_size: uint)
   where
   reads(bodies.{mass_x, mass_y, mass, index}),
   reads writes(quads)

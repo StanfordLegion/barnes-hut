@@ -106,7 +106,7 @@ terra get_number_of_bodies(conf : Config)
   return num_lines
 end
 
-task load_bodies(bodies : region(ispace(int1d), body), conf : Config, num_bodies : int)
+task load_bodies(bodies : region(body), conf : Config, num_bodies : int)
   where writes(bodies.{index, mass_x, mass_y, speed_x, speed_y, mass})
 do
   var index = 0
@@ -133,7 +133,7 @@ do
   c.fclose(fp)
 end
 
-task print_bodies_csv_initial(bodies : region(ispace(int1d), body), conf : Config)
+task print_bodies_csv_initial(bodies : region(body), conf : Config)
   where reads(bodies.{index, mass_x, mass_y, speed_x, speed_y, mass})
 do
   var output_path : int8[1000]
@@ -147,7 +147,7 @@ do
   c.fclose(fp)
 end
 
-task print_bodies_csv_update(bodies : region(ispace(int1d), body), conf : Config, time_step : uint)
+task print_bodies_csv_update(bodies : region(body), conf : Config, time_step : uint)
   where reads(bodies.{index, mass_x, mass_y, speed_x, speed_y})
 do
   var output_path : int8[1000]
@@ -161,7 +161,7 @@ do
   c.fclose(fp)
 end
 
-task print_bodies_svg(bodies : region(ispace(int1d), body), boundaries : region(boundary), conf : Config, time_step : uint)
+task print_bodies_svg(bodies : region(body), boundaries : region(boundary), conf : Config, time_step : uint)
   where
     reads(bodies.{index, mass_x, mass_y, speed_x, speed_y}),
     reads(boundaries)

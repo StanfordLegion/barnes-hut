@@ -16,7 +16,7 @@ local delta = 0.1
 local theta = 0.5
 local epsilon = 0.00001
 
-task update_boundaries(bodies : region(ispace(int1d), body), boundaries : region(boundary))
+task update_boundaries(bodies : region(body), boundaries : region(boundary))
   where
   reads(bodies.{mass_x, mass_y}),
   reads(boundaries),
@@ -31,7 +31,7 @@ do
   end
 end
 
-task assign_sectors(bodies : region(ispace(int1d), body), min_x : double, min_y : double, size : double, sector_precision : uint)
+task assign_sectors(bodies : region(body), min_x : double, min_y : double, size : double, sector_precision : uint)
   where
   reads(bodies.{mass_x, mass_y, sector}),
   writes(bodies.sector)
@@ -51,7 +51,7 @@ do
   end
 end
 
-task size_quad(bodies : region(ispace(int1d), body), max_size : region(uint), min_x : double, min_y : double, size : double, sector_precision : uint, leaf_size : uint, sector : int1d)
+task size_quad(bodies : region(body), max_size : region(uint), min_x : double, min_y : double, size : double, sector_precision : uint, leaf_size : uint, sector : int1d)
   where reads(bodies.{mass_x, mass_y, index}),
   reads (max_size),
   reduces max(max_size)
@@ -80,7 +80,7 @@ do
   max_size[0] max = max(max_size[0], num_quads)
 end
 
-task update_body_positions(bodies : region(ispace(int1d), body), quads : region(ispace(int1d), quad), root_index : uint)
+task update_body_positions(bodies : region(body), quads : region(ispace(int1d), quad), root_index : uint)
 where
   reads writes(bodies),
   reads(quads)
@@ -156,7 +156,7 @@ do
   end
 end
 
-task run_iteration(bodies : region(ispace(int1d), body), boundaries : region(boundary), conf : Config, sector_precision : uint)
+task run_iteration(bodies : region(body), boundaries : region(boundary), conf : Config, sector_precision : uint)
   where
   reads writes(bodies),
   reads writes(boundaries)
@@ -295,7 +295,7 @@ task main()
   
   var num_bodies = get_number_of_bodies(conf)
   c.printf("Loading %d bodies\n", num_bodies)
-  var bodies = region(ispace(int1d, num_bodies), body)
+  var bodies = region(ispace(ptr, num_bodies), body)
 
   load_bodies(bodies, conf, num_bodies)
 
