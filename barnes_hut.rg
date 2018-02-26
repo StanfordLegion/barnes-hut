@@ -51,10 +51,9 @@ do
   end
 end
 
-task size_quad(bodies : region(body), max_size : region(uint), min_x : double, min_y : double, size : double, sector_precision : uint, leaf_size : uint, sector : int1d)
+task size_quad(bodies : region(body), quad_size : region(uint), min_x : double, min_y : double, size : double, sector_precision : uint, leaf_size : uint, sector : int1d)
   where reads(bodies.{mass_x, mass_y, index}),
-  reads (max_size),
-  reduces max(max_size)
+  writes (quad_size)
 do
   var chunk = create_quad_chunk(512)
   var sector_x : int64 = sector % sector_precision
@@ -76,8 +75,7 @@ do
     add_placeholder(root, body_quad, chunk, leaf_size)
   end
 
-  var num_quads = count(chunk, true)
-  max_size[0] max = max(max_size[0], num_quads)
+  quad_size[sector] = count(chunk, true)
 end
 
 task update_body_positions(bodies : region(body), quads : region(ispace(int1d), quad), root_index : uint)
@@ -187,45 +185,88 @@ do
   var sector_index = ispace(int1d, sector_precision * sector_precision)
   var bodies_by_sector = partition(bodies.sector, sector_index)
 
+  var quad_sizes = region(ispace(ptr, sector_precision * sector_precision), uint)
   var partition_size = conf.fixed_partition_size
+  var non_empty_sectors = 0
+
   if conf.fixed_partition_size == -1 then
-    var max_size = region(ispace(ptr, 1), uint)
-    max_size[0] = 0
+    partition_size = 0
     for i=0,conf.N do
-      max_size[0] = max_size[0] + pow(4, i)
+      partition_size += pow(4, i)
     end
 
+    var sector_quad_sizes = partition(equal, quad_sizes, sector_index)
+
+    __demand(__parallel)
     for i in sector_index do
-      size_quad(bodies_by_sector[i], max_size, min_x, min_y, size, sector_precision, conf.leaf_size, i)
+      size_quad(bodies_by_sector[i], sector_quad_sizes[i], min_x, min_y, size, sector_precision, conf.leaf_size, i)
     end
-      
-    partition_size = max_size[0]
+
+    for i=0,sector_precision*sector_precision do
+      if partition_size < quad_sizes[i] then
+        partition_size = quad_sizes[i]
+      end
+      if quad_sizes[i] > 1 then
+        non_empty_sectors += 1
+      end
+    end
+
+    -- c.printf("non empty %d partition_size %d\n", non_empty_sectors, partition_size)
+  else
+    for i=0,sector_precision*sector_precision do
+      quad_sizes[i] = conf.fixed_partition_size
+    end
+    non_empty_sectors = sector_precision*sector_precision
   end
 
-  var quads_split = ispace(int1d, sector_precision * sector_precision + 1)
-  var quads_index = ispace(int1d, partition_size * (sector_precision * sector_precision + 1))
-  var quads = region(quads_index, quad)
+  var num_quads = (non_empty_sectors + 1) * partition_size
+  var quads = region(ispace(int1d, num_quads), quad)
   fill(quads.{nw, sw, ne, se, next_in_leaf}, -1)
+  var quad_offsets = region(ispace(ptr, sector_precision * sector_precision), uint)
 
-  var quads_partition = partition(equal, quads, quads_split)
+  var quads_split = ispace(int1d, (non_empty_sectors + 1) * partition_size)
+  var quads_for_non_empty_sectors = partition(equal, quads, quads_split)
+
+  quad_offsets[0] = 0
+  var counter = 0
+  for i=0,sector_precision*sector_precision do
+    quad_offsets[i+1] = quad_offsets[i]
+
+    if quad_sizes[i] > 1 then
+      if i < sector_precision*sector_precision then
+        quad_offsets[i+1] += partition_size
+      end
+
+      var to_fill = quads_for_non_empty_sectors[counter]
+      fill(to_fill.{sector}, i)
+      counter += 1
+    end
+
+    -- c.printf("offset %d\n", quad_offsets[i])
+  end
+
+  -- c.printf("filled %d\n", counter)
+
+  var quads_by_sector = partition(quads.sector, sector_index)
+  var quad_offsets_by_sector = partition(equal, quad_offsets, sector_index)
 
   __demand(__parallel)
   for i in sector_index do
-    build_quad(bodies_by_sector[i], quads_partition[i], min_x, min_y, size, sector_precision, conf.leaf_size, i, partition_size)
+    build_quad(bodies_by_sector[i], quads_by_sector[i], quad_offsets_by_sector[i], min_x, min_y, size, sector_precision, conf.leaf_size, i)
   end
 
   var to_merge : int[32][32]
   for i=0,sector_precision do
     for j=0,sector_precision do
-      if quads[(i + j*sector_precision) * partition_size].total > 0 then
-        to_merge[i][j] = (i + j*sector_precision) * partition_size
+      if quads[i + j*sector_precision].total > 0 then
+        to_merge[i][j] = quad_offsets[i + j*sector_precision]
       else
         to_merge[i][j] = -1
       end
     end
   end
   
-  var allocation_index = partition_size * sector_precision * sector_precision
+  var allocation_index = partition_size * non_empty_sectors
   var level = sector_precision
   while level > 1 do
     var next_level = level / 2
