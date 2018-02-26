@@ -303,6 +303,7 @@ do
 end
 
 task main()
+  var ts_start = c.legion_get_current_time_in_micros()
   var conf = parse_input_args()
   
   var num_bodies = get_number_of_bodies(conf)
@@ -336,5 +337,7 @@ task main()
         print_bodies_svg(bodies, boundaries, conf, i+1)
       end
   end
+  var ts_end = c.legion_get_current_time_in_micros()
+  c.printf("Total time: %d ms", (ts_end - ts_start) / 1000)
 end
 regentlib.start(main)
