@@ -83,7 +83,7 @@ terra parse_input_args()
     c.printf(" csv_dir=%s", conf.csv_dir)
   end
 
-  if conf.csv_dir_set then
+  if conf.svg_dir_set then
     c.printf(" svg_dir=%s", conf.svg_dir)
   end
 

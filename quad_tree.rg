@@ -16,8 +16,8 @@ task build_quad(bodies : region(body), quads : region(ispace(int1d), quad), min_
   reads(bodies.{mass_x, mass_y, mass, index}),
   reads writes(quads)
 do
-  var sector_x = sector % sector_precision
-  var sector_y: int64 = cmath.floor(sector / sector_precision)
+  var sector_x : int64 = sector % sector_precision
+  var sector_y : int64 = cmath.floor(sector / sector_precision)
 
   var index = sector * partition_size
   var root_index = index
@@ -26,12 +26,14 @@ do
   quads[root_index].center_y = min_y + (sector_y + 0.5) * size / sector_precision
   quads[root_index].size = size / sector_precision
   quads[root_index].type = 2
+  -- regentlib.c.printf("root %f %f %f %d %d %f %f\n", min_x, size, root_index, sector_x, sector_y, quads[root_index].center_x, quads[root_index].center_y)
   
   var parent_list : int1d[1024]
   var child_list : int1d[1024]
   var traverse_index = 0
 
   for body in bodies do
+    -- regentlib.c.printf("body root %d %d %d %d\n", body.index, root_index, sector_x, sector_y)
     index = index + 1
     assert(quads[index].type == 0, "body already allocated")
     quads[index].mass_x = body.mass_x
@@ -41,18 +43,24 @@ do
     quads[index].type = 1
     quads[index].index = body.index
 
+    traverse_index = 0
     parent_list[traverse_index] = root_index
     child_list[traverse_index] = index
     
-    while traverse_index >= 0 do  
+    while traverse_index >= 0 do
+      -- regentlib.c.printf("parent %d child %d traverse_index %d\n", parent_list[traverse_index], child_list[traverse_index], traverse_index)
+      assert(traverse_index < 1024 - leaf_size - 1, "possible overflow")
       var parent_index = parent_list[traverse_index]
       var child_index = child_list[traverse_index]
+      assert(parent_index ~= child_index, "parent shouldn't equal child")
+      assert([int](parent_index) >= 0, "parent shouldn't be negative")
       traverse_index = traverse_index - 1
 
       var half_size = quads[parent_index].size / 2
       if quads[child_index].mass_x <= quads[parent_index].center_x then
         if quads[child_index].mass_y <= quads[parent_index].center_y then
           if quads[parent_index].sw == -1 then
+            -- regentlib.c.printf("sw\n")
             quads[child_index].leaf_count = 1
             quads[parent_index].sw = child_index
           elseif quads[quads[parent_index].sw].type == 1 then
@@ -62,12 +70,12 @@ do
               quads[parent_index].sw = child_index
             else
               index += 1
+              -- regentlib.c.printf("inserting fork at index %d\n", index)
               assert(quads[index].type == 0, "region already allocated")
               quads[index].type = 2
               quads[index].center_x = quads[parent_index].center_x - half_size / 2
               quads[index].center_y = quads[parent_index].center_y - half_size / 2
               quads[index].size = half_size
-              quads[parent_index].sw = index
 
               var current = quads[parent_index].sw
               while current ~= -1 do
@@ -76,12 +84,14 @@ do
                 traverse_index += 1
                 parent_list[traverse_index] = index
                 child_list[traverse_index] = current
+                -- regentlib.c.printf("inserting parent %d child %d traverse_index %d\n", parent_list[traverse_index], child_list[traverse_index], traverse_index)
                 current = next_in_leaf
               end
 
               traverse_index += 1
               parent_list[traverse_index] = index
-              child_list[traverse_index] = child_index              
+              child_list[traverse_index] = child_index
+              quads[parent_index].sw = index
             end
           else
             traverse_index += 1
@@ -104,7 +114,6 @@ do
               quads[index].center_x = quads[parent_index].center_x - half_size / 2
               quads[index].center_y = quads[parent_index].center_y + half_size / 2
               quads[index].size = half_size
-              quads[parent_index].nw = index
 
               var current = quads[parent_index].nw
               while current ~= -1 do
@@ -113,12 +122,14 @@ do
                 traverse_index += 1
                 parent_list[traverse_index] = index
                 child_list[traverse_index] = current
+                -- regentlib.c.printf("inserting parent %d child %d traverse_index %d\n", parent_list[traverse_index], child_list[traverse_index], traverse_index)
                 current = next_in_leaf
               end
 
               traverse_index += 1
               parent_list[traverse_index] = index
-              child_list[traverse_index] = child_index 
+              child_list[traverse_index] = child_index
+              quads[parent_index].nw = index
             end
           else
             traverse_index += 1
@@ -143,7 +154,6 @@ do
               quads[index].center_x = quads[parent_index].center_x + half_size / 2
               quads[index].center_y = quads[parent_index].center_y - half_size / 2
               quads[index].size = half_size
-              quads[parent_index].se = index
 
               var current = quads[parent_index].se
               while current ~= -1 do
@@ -152,12 +162,14 @@ do
                 traverse_index += 1
                 parent_list[traverse_index] = index
                 child_list[traverse_index] = current
+                -- regentlib.c.printf("inserting parent %d child %d traverse_index %d\n", parent_list[traverse_index], child_list[traverse_index], traverse_index)
                 current = next_in_leaf
               end
 
               traverse_index += 1
               parent_list[traverse_index] = index
-              child_list[traverse_index] = child_index 
+              child_list[traverse_index] = child_index
+              quads[parent_index].se = index
             end
           else
             traverse_index += 1
@@ -180,7 +192,6 @@ do
               quads[index].center_x = quads[parent_index].center_x + half_size / 2
               quads[index].center_y = quads[parent_index].center_y + half_size / 2
               quads[index].size = half_size
-              quads[parent_index].ne = index
 
               var current = quads[parent_index].ne
               while current ~= -1 do
@@ -189,16 +200,18 @@ do
                 traverse_index += 1
                 parent_list[traverse_index] = index
                 child_list[traverse_index] = current
+                -- regentlib.c.printf("inserting parent %d child %d traverse_index %d\n", parent_list[traverse_index], child_list[traverse_index], traverse_index)
                 current = next_in_leaf
               end
 
               traverse_index += 1
               parent_list[traverse_index] = index
-              child_list[traverse_index] = child_index 
+              child_list[traverse_index] = child_index
+              quads[parent_index].ne = index
             end
           else
             traverse_index += 1
-            parent_list[traverse_index] = quads[parent_index].se
+            parent_list[traverse_index] = quads[parent_index].ne
             child_list[traverse_index] = child_index
           end     
         end

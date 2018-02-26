@@ -11,7 +11,7 @@ local cmath = terralib.includec("math.h")
 
 local QuadTreeSizer = require("quad_tree_sizer")
 
-local gee = 100
+local gee = 100.0
 local delta = 0.1
 local theta = 0.5
 local epsilon = 0.00001
@@ -57,8 +57,8 @@ task size_quad(bodies : region(body), max_size : region(uint), min_x : double, m
   reduces max(max_size)
 do
   var chunk = create_quad_chunk(512)
-  var sector_x = sector % sector_precision
-  var sector_y: int64 = cmath.floor(sector / sector_precision)
+  var sector_x : int64 = sector % sector_precision
+  var sector_y : int64 = cmath.floor(sector / sector_precision)
   var center_x = min_x + (sector_x + 0.5) * size / sector_precision
   var center_y = min_y + (sector_y + 0.5) * size / sector_precision
 
@@ -89,43 +89,46 @@ do
   for body in bodies do
     traverse_list[0] = root_index
     var traverse_index = 0
+    var force_x : double = 0.0f
+    var force_y : double = 0.0f
 
     while traverse_index >= 0 do
       var cur_index : int = traverse_list[traverse_index]
       traverse_index = traverse_index - 1
+      -- c.printf("traverse index %d quad %d\n", traverse_index + 1, cur_index)
+
       if quads[cur_index].type == 2 then
         var dist = sqrt((body.mass_x - quads[cur_index].mass_x) * (body.mass_x - quads[cur_index].mass_x) + (body.mass_y - quads[cur_index].mass_y) * (body.mass_y - quads[cur_index].mass_y))
 
-        if dist == 0 or quads[cur_index].size / dist >= theta then
+        if dist <= epsilon or quads[cur_index].size / dist >= theta then
           assert(traverse_index < 1020, "possible traverse list overflow")
-          if quads[cur_index].sw ~= 1 then
-            traverse_list[traverse_index + 1] = quads[cur_index].sw
+          if quads[cur_index].sw ~= -1 then
             traverse_index += 1
+            traverse_list[traverse_index] = quads[cur_index].sw
           end
 
-          if quads[cur_index].nw ~= 1 then
-            traverse_list[traverse_index + 1] = quads[cur_index].nw
+          if quads[cur_index].nw ~= -1 then
             traverse_index += 1
+            traverse_list[traverse_index] = quads[cur_index].nw
           end
 
-          if quads[cur_index].se ~= 1 then
-            traverse_list[traverse_index + 1] = quads[cur_index].se
+          if quads[cur_index].se ~= -1 then
             traverse_index += 1
+            traverse_list[traverse_index] = quads[cur_index].se
           end
 
-          if quads[cur_index].ne ~= 1 then
-            traverse_list[traverse_index + 1] = quads[cur_index].ne
+          if quads[cur_index].ne ~= -1 then
             traverse_index += 1
+            traverse_list[traverse_index] = quads[cur_index].ne
           end
         else
           var d_force = gee * body.mass * quads[cur_index].mass / (dist * dist)
           var xn = (quads[cur_index].mass_x - body.mass_x) / dist
           var yn = (quads[cur_index].mass_y - body.mass_y) / dist
-          var d_force_x = d_force * xn
-          var d_force_y = d_force * yn
+          -- c.printf("Heuristic updating body %d: d_force_x %f d_force_y %f\n", body.index, d_force_x, d_force_x)
 
-          body.force_x += d_force_x
-          body.force_y += d_force_y
+          force_x += d_force * xn
+          force_y += d_force * yn
         end
       else
         while cur_index ~= -1 do
@@ -136,11 +139,9 @@ do
               var d_force = gee * body.mass * quads[cur_index].mass / (dist * dist)
               var xn = (quads[cur_index].mass_x - body.mass_x) / dist
               var yn = (quads[cur_index].mass_y - body.mass_y) / dist
-              var d_force_x = d_force * xn
-              var d_force_y = d_force * yn
-
-              body.force_x += d_force_x
-              body.force_y += d_force_y
+              force_x += d_force * xn
+              force_y += d_force * yn
+              -- c.printf("Updating body %d: d_force_x %f d_force_y %f d_force %f body_mass %f cur_mass %f dist %f xn %f yn %f\n", body.index, d_force_x, d_force_x, d_force, body.mass, quads[cur_index].mass, dist, xn, yn)
             end
           end
 
@@ -149,10 +150,12 @@ do
       end
     end
 
+    -- c.printf("Updating body %d: force_x %f force_y %f\n", body.index, force_x, force_y)
+
     body.mass_x = body.mass_x + body.speed_x * delta
     body.mass_y = body.mass_y + body.speed_y * delta
-    body.speed_x = body.speed_x + body.force_x / body.mass * delta
-    body.speed_y = body.speed_y + body.force_y / body.mass * delta
+    body.speed_x = body.speed_x + force_x / body.mass * delta
+    body.speed_y = body.speed_y + force_y / body.mass * delta
   end
 end
 
@@ -214,8 +217,8 @@ do
   var to_merge : int[32][32]
   for i=0,sector_precision do
     for j=0,sector_precision do
-      if quads[(i + j*sector_precision + 1) * partition_size].total > 0 then
-        to_merge[i][j] = (i + j*sector_precision + 1) * partition_size
+      if quads[(i + j*sector_precision) * partition_size].total > 0 then
+        to_merge[i][j] = (i + j*sector_precision) * partition_size
       else
         to_merge[i][j] = -1
       end
@@ -284,9 +287,18 @@ do
     level = next_level
   end
 
+   -- for i in quads_index do
+    -- if quads[i].total ~= 0 then
+      -- c.printf("%d Quad index: %d, type %d mass_x %f, mass_y %f, mass %f, center_x %f, center_y %f, size %f, total %d, sw %d, nw %d, se %d, ne %d\n", i, quads[i].index, quads[i].type, quads[i].mass_x, quads[i].mass_y, quads[i].mass, quads[i].center_x, quads[i].center_y, quads[i].size, quads[i].total, quads[i].sw, quads[i].nw, quads[i].se, quads[i].ne)
+    -- end
+   -- end
+
+  var i = allocation_index - 1
+  -- c.printf("\n%d Root index: %d, type %d mass_x %f, mass_y %f, mass %f, center_x %f, center_y %f, size %f, total %d, sw %d, nw %d, se %d, ne %d\n", i, quads[i].index, quads[i].type, quads[i].mass_x, quads[i].mass_y, quads[i].mass, quads[i].center_x, quads[i].center_y, quads[i].size, quads[i].total, quads[i].sw, quads[i].nw, quads[i].se, quads[i].ne)
+
   __demand(__parallel)
   for i in body_partition_index do
-    update_body_positions(bodies_partition[i], quads, allocation_index)
+    update_body_positions(bodies_partition[i], quads, allocation_index - 1)
   end
 end
 
@@ -314,7 +326,6 @@ task main()
   var sector_precision : uint = pow(2, conf.N)
 
   for i=0,conf.time_steps do
-      fill(bodies.{force_x, force_y}, 0)
       run_iteration(bodies, boundaries, conf, sector_precision)
 
       if conf.csv_dir_set then
