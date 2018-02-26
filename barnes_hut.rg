@@ -327,7 +327,10 @@ task main()
   var sector_precision : uint = pow(2, conf.N)
 
   for i=0,conf.time_steps do
+      var iter_start = c.legion_get_current_time_in_micros()
       run_iteration(bodies, boundaries, conf, sector_precision)
+      var iter_end = c.legion_get_current_time_in_micros()
+      c.printf("Iteration time: %d ms\n", (iter_end - iter_start) / 1000)
 
       if conf.csv_dir_set then
         print_bodies_csv_update(bodies, conf, i+1)
@@ -338,6 +341,6 @@ task main()
       end
   end
   var ts_end = c.legion_get_current_time_in_micros()
-  c.printf("Total time: %d ms", (ts_end - ts_start) / 1000)
+  c.printf("Total time: %d ms\n", (ts_end - ts_start) / 1000)
 end
 regentlib.start(main)
