@@ -224,7 +224,7 @@ do
   fill(quads.{nw, sw, ne, se, next_in_leaf}, -1)
   var quad_offsets = region(ispace(ptr, sector_precision * sector_precision), uint)
 
-  var quads_split = ispace(int1d, (non_empty_sectors + 1) * partition_size)
+  var quads_split = ispace(int1d, non_empty_sectors + 1)
   var quads_for_non_empty_sectors = partition(equal, quads, quads_split)
 
   quad_offsets[0] = 0
