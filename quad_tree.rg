@@ -9,41 +9,40 @@ fspace quad {
   {mass_x, mass_y, mass, center_x, center_y, size} : double,
   {total, leaf_count, type, index} : uint,
   {ne, nw, se, sw, next_in_leaf} : int,
-  sector: int1d,
 }
 
-task build_quad(bodies : region(body), quads : region(ispace(int1d), quad), quad_offset : region(uint), min_x : double, min_y : double, size : double, sector_precision : uint, leaf_size : uint, sector : int1d)
+task build_quad(bodies : region(body), quads : region(ispace(int1d), quad), quad_range : region(ispace(int1d), rect1d), min_x : double, min_y : double, size : double, sector_precision : uint, leaf_size : uint, sector : int1d)
   where
   reads(bodies.{mass_x, mass_y, mass, index}),
-  reads(quad_offset),
+  reads(quad_range),
   reads writes(quads)
 do
   var sector_x : int64 = sector % sector_precision
   var sector_y : int64 = cmath.floor(sector / sector_precision)
 
-  var index = quad_offset[sector]
+  var sector_quad_range = quad_range[sector]
+  var index = sector_quad_range.lo
   var root_index = index
+
+  assert(quads[root_index].type == 0, "root already allocated")
+  quads[root_index].center_x = min_x + (sector_x + 0.5) * size / sector_precision
+  quads[root_index].center_y = min_y + (sector_y + 0.5) * size / sector_precision
+  quads[root_index].size = size / sector_precision
+  quads[root_index].type = 2
+  -- regentlib.c.printf("root %f %f %d %d %d %f %f\n", min_x, size, root_index, sector_x, sector_y, quads[root_index].center_x, quads[root_index].center_y)
   
   var parent_list : int1d[1024]
   var child_list : int1d[1024]
   var traverse_index = 0
 
   for body in bodies do
-    if index == root_index then
-      assert(quads[root_index].type == 0, "root already allocated")
-      quads[root_index].center_x = min_x + (sector_x + 0.5) * size / sector_precision
-      quads[root_index].center_y = min_y + (sector_y + 0.5) * size / sector_precision
-      quads[root_index].size = size / sector_precision
-      quads[root_index].type = 2
-      -- regentlib.c.printf("root %f %f %d %d %d %f %f\n", min_x, size, root_index, sector_x, sector_y, quads[root_index].center_x, quads[root_index].center_y)
-    end
-
     -- regentlib.c.printf("body root %d %d %d %d\n", body.index, root_index, sector_x, sector_y)
     index = index + 1
     assert(quads[index].type == 0, "body already allocated")
     quads[index].mass_x = body.mass_x
     quads[index].mass_y = body.mass_y
     quads[index].mass = body.mass
+    quads[index].leaf_count = 1
     quads[index].total = 1
     quads[index].type = 1
     quads[index].index = body.index
