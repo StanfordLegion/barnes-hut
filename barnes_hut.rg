@@ -211,7 +211,7 @@ do
   for i=0,conf.N do
     num_quads += pow(4, i)
   end
-  quad_ranges[sector_precision * sector_precision + 1] = rect1d({offset, num_quads - 1})
+  quad_ranges[sector_precision * sector_precision] = rect1d({offset, num_quads - 1})
 
   var quads = region(ispace(int1d, num_quads), quad)
   fill(quads.{nw, sw, ne, se, next_in_leaf}, -1)
@@ -220,9 +220,12 @@ do
   var quad_range_by_sector = partition(equal, quad_ranges, quad_range_space) 
   var quads_by_sector = image(quads, quad_range_by_sector, quad_ranges)
 
-  -- __demand(__parallel)
+  var quads_by_sector_colors = quads_by_sector.colors
+  var quads_by_sector_disjoint = dynamic_cast(partition(disjoint, quads, quads_by_sector_colors), quads_by_sector)
+
+  __demand(__parallel)
   for i in sector_index do
-    build_quad(bodies_by_sector[i], quads_by_sector[i], quad_ranges, min_x, min_y, size, sector_precision, conf.leaf_size, i)
+    build_quad(bodies_by_sector[i], quads_by_sector_disjoint[i], quad_ranges, min_x, min_y, size, sector_precision, conf.leaf_size, i)
   end
 
   var to_merge : int[32][32]
