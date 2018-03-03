@@ -106,23 +106,15 @@ terra get_number_of_bodies(conf : Config)
   return num_lines
 end
 
-task load_bodies(bodies : region(body), conf : Config, num_bodies : int)
-  where writes(bodies.{index, mass_x, mass_y, speed_x, speed_y, mass})
+task load_bodies(bodies : region(ispace(int1d), body), conf : Config, num_bodies : int)
+  where writes(bodies.{mass_x, mass_y, speed_x, speed_y, mass})
 do
-  var index = 0
-  var mass_x = 0.0
-  var mass_y = 0.0
-  var speed_x = 0.0
-  var speed_y = 0.0
-  var mass = 0.0
-
   var fp = c.fopen(conf.input_file, "r")
   var line : int8[1024]
 
   for i=0,num_bodies do
     c.fgets(line, 1024, fp)
     var index = std.atoi(cstring.strtok(line, ","))
-    bodies[index].index = index
     bodies[index].mass_x = std.atof(cstring.strtok([&int8](0), ","))
     bodies[index].mass_y = std.atof(cstring.strtok([&int8](0), ","))
     bodies[index].speed_x = std.atof(cstring.strtok([&int8](0), ","))
@@ -133,37 +125,37 @@ do
   c.fclose(fp)
 end
 
-task print_bodies_csv_initial(bodies : region(body), conf : Config)
-  where reads(bodies.{index, mass_x, mass_y, speed_x, speed_y, mass})
+task print_bodies_csv_initial(bodies : region(ispace(int1d), body), conf : Config)
+  where reads(bodies.{mass_x, mass_y, speed_x, speed_y, mass})
 do
   var output_path : int8[1000]
   c.sprintf([&int8](output_path), "%s/0.csv", conf.csv_dir)
 
   var fp = c.fopen(output_path, "w")
   for body in bodies do
-    c.fprintf(fp, "%d,%f,%f,%f,%f,%f\n", body.index, body.mass_x, body.mass_y, body.speed_x, body.speed_y, body.mass)
+    c.fprintf(fp, "%d,%f,%f,%f,%f,%f\n", int(body), body.mass_x, body.mass_y, body.speed_x, body.speed_y, body.mass)
   end
 
   c.fclose(fp)
 end
 
-task print_bodies_csv_update(bodies : region(body), conf : Config, time_step : uint)
-  where reads(bodies.{index, mass_x, mass_y, speed_x, speed_y})
+task print_bodies_csv_update(bodies : region(ispace(int1d), body), conf : Config, time_step : uint)
+  where reads(bodies.{mass_x, mass_y, speed_x, speed_y})
 do
   var output_path : int8[1000]
   c.sprintf([&int8](output_path), "%s/%d.csv", conf.csv_dir, time_step)
 
   var fp = c.fopen(output_path, "w")
   for body in bodies do
-    c.fprintf(fp, "%d,%f,%f,%f,%f\n", body.index, body.mass_x, body.mass_y, body.speed_x, body.speed_y)
+    c.fprintf(fp, "%d,%f,%f,%f,%f\n", int(body), body.mass_x, body.mass_y, body.speed_x, body.speed_y)
   end
 
   c.fclose(fp)
 end
 
-task print_bodies_svg(bodies : region(body), boundaries : region(boundary), conf : Config, time_step : uint)
+task print_bodies_svg(bodies : region(ispace(int1d), body), boundaries : region(boundary), conf : Config, time_step : uint)
   where
-    reads(bodies.{index, mass_x, mass_y, speed_x, speed_y}),
+    reads(bodies.{mass_x, mass_y, speed_x, speed_y}),
     reads(boundaries)
 do
   var output_path : int8[1000]
