@@ -231,15 +231,16 @@ do
   var to_merge : int[32][32]
   for i=0,sector_precision do
     for j=0,sector_precision do
-      if quads[i + j*sector_precision].total > 0 then
-        var quad_range = quad_ranges[i + j*sector_precision]
-        to_merge[i][j] = quad_range.lo
+      var quad_range = quad_ranges[i + j*sector_precision]
+      var root_index = quad_range.lo
+      if quads[root_index].total > 0 then
+        to_merge[i][j] = root_index
       else
         to_merge[i][j] = -1
       end
     end
   end
-  
+
   var allocation_index = num_quads - 1
   var level = sector_precision
   while level > 1 do
