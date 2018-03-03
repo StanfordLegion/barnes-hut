@@ -53,12 +53,12 @@ do
   end
 end
 
-task size_quad(bodies : region(ispace(int1d), body), quad_size : region(uint), min_x : double, min_y : double, size : double, sector_precision : uint, leaf_size : uint, sector : int1d)
+task size_quad(bodies : region(ispace(int1d), body), quad_size : region(ispace(int1d), uint), min_x : double, min_y : double, size : double, sector_precision : uint, leaf_size : uint, sector : int1d)
   where reads(bodies.{mass_x, mass_y}),
   writes (quad_size)
 do
   var chunk = create_quad_chunk(512)
-   var sector_x : int64 = sector % sector_precision
+  var sector_x : int64 = sector % sector_precision
   var sector_y : int64 = cmath.floor(sector / sector_precision)
   var center_x = min_x + (sector_x + 0.5) * size / sector_precision
   var center_y = min_y + (sector_y + 0.5) * size / sector_precision
@@ -185,12 +185,13 @@ do
   end
 end
 
-task run_iteration(bodies : region(ispace(int1d), body), boundaries : region(boundary), conf : Config, sector_precision : uint)
+task run_iteration(all_bodies : region(ispace(int1d), body), boundaries : region(boundary), conf : Config, sector_precision : uint)
   where
-  reads writes(bodies),
+  reads writes(all_bodies),
   reads writes(boundaries)
 do
-  --var bodies = partition(all_bodies.eliminated, ispace(int1d, 2))[0]
+  var elimination_partition = partition(all_bodies.eliminated, ispace(int1d, 2))
+  var bodies = elimination_partition[0]
 
   boundaries[0] = { min_x = bodies[0].mass_x, min_y = bodies[0].mass_y, max_x = bodies[0].mass_x, max_y = bodies[0].mass_y }
   
@@ -214,7 +215,19 @@ do
   
   var sector_index = ispace(int1d, sector_precision * sector_precision)
   var bodies_by_sector = partition(bodies.sector, sector_index)
-  var quad_sizes = region(ispace(ptr, sector_precision * sector_precision), uint)
+
+  for body in bodies do
+    c.printf("bodies: %d %d\n", int(body), body.sector)
+  end
+
+  for i in sector_index do
+    c.printf("sector %d\n", i)
+    for body in bodies_by_sector[i] do
+      c.printf("%d %d\n", int(body), body.sector)
+    end
+  end
+
+  var quad_sizes = region(ispace(int1d, sector_precision * sector_precision), uint)
 
   if conf.fixed_partition_size == -1 then
     var sector_quad_sizes = partition(equal, quad_sizes, sector_index)
