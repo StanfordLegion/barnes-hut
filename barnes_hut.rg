@@ -259,7 +259,7 @@ do
     build_quad(bodies_by_sector[i], quads_by_sector_disjoint[i], quad_ranges, min_x, min_y, size, sector_precision, conf.leaf_size, i)
   end
 
-  var to_merge : int[32][32]
+  var to_merge : int[64][64]
   for i=0,sector_precision do
     for j=0,sector_precision do
       var quad_range = quad_ranges[i + j*sector_precision]
