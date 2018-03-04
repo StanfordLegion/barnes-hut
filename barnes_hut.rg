@@ -77,7 +77,7 @@ do
     add_placeholder(root, body_quad, chunk, leaf_size)
   end
 
-  quad_size[sector] = count(chunk, true)
+  quad_size[sector] = count(chunk, true) + 100
 end
 
 task update_body_positions(bodies : region(body), quads : region(ispace(int1d), quad), root_index : uint)
@@ -191,25 +191,32 @@ task main()
   
   var num_bodies = get_number_of_bodies(conf)
   c.printf("Loading %d bodies\n", num_bodies)
-  var bodies = region(ispace(ptr, num_bodies), body)
+  var all_bodies = region(ispace(ptr, num_bodies), body)
 
-  load_bodies(bodies, conf, num_bodies)
+  load_bodies(all_bodies, conf, num_bodies)
 
   if conf.csv_dir_set then
-    print_bodies_csv_initial(bodies, conf)
+    print_bodies_csv_initial(all_bodies, conf)
   end
 
   var boundaries = region(ispace(ptr, 1), boundary)
   
   if conf.svg_dir_set then
-    boundaries[0] = { min_x = bodies[0].mass_x, min_y = bodies[0].mass_y, max_x = bodies[0].mass_x, max_y = bodies[0].mass_y }
-    update_boundaries(bodies, boundaries)
-    print_bodies_svg(bodies, boundaries, conf, 0)
+    boundaries[0] = { min_x = all_bodies[0].mass_x, min_y = all_bodies[0].mass_y, max_x = all_bodies[0].mass_x, max_y = all_bodies[0].mass_y }
+    update_boundaries(all_bodies, boundaries)
+    print_bodies_svg(all_bodies, boundaries, conf, 0)
   end
 
   var sector_precision : uint = pow(2, conf.N)
 
-  for i=0,conf.time_steps do
+  var quad_range_space = ispace(int1d, sector_precision * sector_precision + 1)
+  var quad_ranges = region(quad_range_space, rect1d)
+  var quad_sizes = region(ispace(ptr, sector_precision * sector_precision), uint)
+  var sector_index = ispace(int1d, sector_precision * sector_precision)
+  var sector_quad_sizes = partition(equal, quad_sizes, sector_index)
+  var num_quads = 0
+  
+  for t=0,conf.time_steps do
       var iter_start = c.legion_get_current_time_in_micros()
       
       var elimination_partition = partition(all_bodies.eliminated, ispace(int1d, 2))
@@ -235,36 +242,32 @@ task main()
         assign_sectors(bodies_partition[i], min_x, min_y, size, sector_precision)
       end
       
-      var sector_index = ispace(int1d, sector_precision * sector_precision)
       var bodies_by_sector = partition(bodies.sector, sector_index)
-      var quad_sizes = region(ispace(ptr, sector_precision * sector_precision), uint)
-      var sector_quad_sizes = partition(equal, quad_sizes, sector_index)
-
-      if conf.fixed_partition_size == -1 then
-
-        __demand(__parallel)
-        for i in sector_index do
-          size_quad(bodies_by_sector[i], sector_quad_sizes[i], min_x, min_y, size, sector_precision, conf.leaf_size, i)
+      
+      if t == 0 then
+        if conf.fixed_partition_size == -1 then
+          __demand(__parallel)
+          for i in sector_index do
+            size_quad(bodies_by_sector[i], sector_quad_sizes[i], min_x, min_y, size, sector_precision, conf.leaf_size, i)
+          end
+        else
+          for i in sector_index do
+            quad_sizes[i] = conf.fixed_partition_size
+          end
         end
-      else
-        for i in sector_index do
-          quad_sizes[i] = conf.fixed_partition_size
+
+        var offset = 0
+        for i=0,sector_precision*sector_precision do
+          quad_ranges[i] = rect1d({offset, offset + quad_sizes[i] - 1})
+          offset += quad_sizes[i]
         end
-      end
 
-      var quad_range_space = ispace(int1d, sector_precision * sector_precision + 1)
-      var quad_ranges = region(quad_range_space, rect1d)
-      var offset = 0
-      for i=0,sector_precision*sector_precision do
-        quad_ranges[i] = rect1d({offset, offset + quad_sizes[i] - 1})
-        offset += quad_sizes[i]
+        num_quads = offset
+        for i=0,conf.N do
+          num_quads += pow(4, i)
+        end
+        quad_ranges[sector_precision * sector_precision] = rect1d({offset, num_quads - 1})
       end
-
-      var num_quads = offset
-      for i=0,conf.N do
-        num_quads += pow(4, i)
-      end
-      quad_ranges[sector_precision * sector_precision] = rect1d({offset, num_quads - 1})
 
       var quads = region(ispace(int1d, num_quads), quad)
       fill(quads.{nw, sw, ne, se, next_in_leaf}, -1)
@@ -409,11 +412,11 @@ task main()
       c.printf("Iteration time: %d ms\n", (iter_end - iter_start) / 1000)
 
       if conf.csv_dir_set then
-        print_bodies_csv_update(bodies, conf, i+1)
+        print_bodies_csv_update(bodies, conf, t+1)
       end
 
       if conf.svg_dir_set then
-        print_bodies_svg(bodies, boundaries, conf, i+1)
+        print_bodies_svg(bodies, boundaries, conf, t+1)
       end
   end
   var ts_end = c.legion_get_current_time_in_micros()
