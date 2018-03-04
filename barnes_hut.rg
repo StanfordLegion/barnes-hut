@@ -14,7 +14,6 @@ local QuadTreeSizer = require("quad_tree_sizer")
 local gee = 100.0
 local delta = 0.1
 local theta = 0.5
-local epsilon = 0.00001
 local elimination_threshold = 8.0
 local elimination_quantity = 4
 
@@ -99,52 +98,51 @@ do
 
       if quads[cur_index].type == 2 then
         var dist = sqrt((body.mass_x - quads[cur_index].mass_x) * (body.mass_x - quads[cur_index].mass_x) + (body.mass_y - quads[cur_index].mass_y) * (body.mass_y - quads[cur_index].mass_y))
+        if dist > 1.0 then
+          if quads[cur_index].size / dist >= theta then
+            assert(traverse_index < 1020, "possible traverse list overflow")
+            if quads[cur_index].sw ~= -1 then
+              traverse_index += 1
+              traverse_list[traverse_index] = quads[cur_index].sw
+            end
 
-        if dist <= epsilon or quads[cur_index].size / dist >= theta then
-          assert(traverse_index < 1020, "possible traverse list overflow")
-          if quads[cur_index].sw ~= -1 then
-            traverse_index += 1
-            traverse_list[traverse_index] = quads[cur_index].sw
+            if quads[cur_index].nw ~= -1 then
+              traverse_index += 1
+              traverse_list[traverse_index] = quads[cur_index].nw
+            end
+
+            if quads[cur_index].se ~= -1 then
+              traverse_index += 1
+              traverse_list[traverse_index] = quads[cur_index].se
+            end
+
+            if quads[cur_index].ne ~= -1 then
+              traverse_index += 1
+              traverse_list[traverse_index] = quads[cur_index].ne
+            end
+          else
+            var d_force = gee * body.mass * quads[cur_index].mass / (dist * dist)
+            var xn = (quads[cur_index].mass_x - body.mass_x) / dist
+            var yn = (quads[cur_index].mass_y - body.mass_y) / dist
+            -- c.printf("Heuristic updating body %d: d_force_x %f d_force_y %f\n", body.index, d_force_x, d_force_x)
+
+            force_x += d_force * xn
+            force_y += d_force * yn
           end
-
-          if quads[cur_index].nw ~= -1 then
-            traverse_index += 1
-            traverse_list[traverse_index] = quads[cur_index].nw
-          end
-
-          if quads[cur_index].se ~= -1 then
-            traverse_index += 1
-            traverse_list[traverse_index] = quads[cur_index].se
-          end
-
-          if quads[cur_index].ne ~= -1 then
-            traverse_index += 1
-            traverse_list[traverse_index] = quads[cur_index].ne
-          end
-        else
-          var d_force = gee * body.mass * quads[cur_index].mass / (dist * dist)
-          var xn = (quads[cur_index].mass_x - body.mass_x) / dist
-          var yn = (quads[cur_index].mass_y - body.mass_y) / dist
-          -- c.printf("Heuristic updating body %d: d_force_x %f d_force_y %f\n", body.index, d_force_x, d_force_x)
-
-          force_x += d_force * xn
-          force_y += d_force * yn
         end
       else
         while cur_index ~= -1 do
           if quads[cur_index].index ~= body.index then
             var dist = sqrt((body.mass_x - quads[cur_index].mass_x) * (body.mass_x - quads[cur_index].mass_x) + (body.mass_y - quads[cur_index].mass_y) * (body.mass_y - quads[cur_index].mass_y))
-
-            if dist > epsilon then
+            if dist > 1.0 then
               var d_force = gee * body.mass * quads[cur_index].mass / (dist * dist)
               var xn = (quads[cur_index].mass_x - body.mass_x) / dist
               var yn = (quads[cur_index].mass_y - body.mass_y) / dist
               force_x += d_force * xn
               force_y += d_force * yn
               -- c.printf("Updating body %d: d_force_x %f d_force_y %f d_force %f body_mass %f cur_mass %f dist %f xn %f yn %f\n", body.index, d_force_x, d_force_x, d_force, body.mass, quads[cur_index].mass, dist, xn, yn)
+              end
             end
-          end
-
           cur_index = quads[cur_index].next_in_leaf
         end
       end
