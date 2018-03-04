@@ -383,6 +383,7 @@ do
     -- eliminate_outliers(bodies_by_sector[y], sector_quad_sizes[y], root_mass_x, root_mass_y, root_mass, size, y)
   end
 
+  __delete(quad_regions)
   __delete(quad_sizes)
   __delete(quads)
 end
