@@ -68,7 +68,7 @@ do
             quads[child_index].leaf_count = 1
             quads[parent_index].sw = child_index
           elseif quads[quads[parent_index].sw].type == 1 then
-            if quads[quads[parent_index].sw].leaf_count < leaf_size then
+            if quads[quads[parent_index].sw].leaf_count < leaf_size or quads[parent_index].size < 0.00001 then
               quads[child_index].leaf_count = quads[quads[parent_index].sw].leaf_count + 1
               quads[child_index].next_in_leaf = quads[parent_index].sw
               quads[parent_index].sw = child_index
@@ -107,7 +107,7 @@ do
             quads[child_index].leaf_count = 1
             quads[parent_index].nw = child_index
           elseif quads[quads[parent_index].nw].type == 1 then
-            if quads[quads[parent_index].nw].leaf_count < leaf_size then
+            if quads[quads[parent_index].nw].leaf_count < leaf_size or quads[parent_index].size < 0.00001 then
               quads[child_index].leaf_count = quads[quads[parent_index].nw].leaf_count + 1
               quads[child_index].next_in_leaf = quads[parent_index].nw
               quads[parent_index].nw = child_index
@@ -147,7 +147,7 @@ do
             quads[child_index].leaf_count = 1
             quads[parent_index].se = child_index
           elseif quads[quads[parent_index].se].type == 1 then
-            if quads[quads[parent_index].se].leaf_count < leaf_size then
+            if quads[quads[parent_index].se].leaf_count < leaf_size or quads[parent_index].size < 0.00001 then
               quads[child_index].leaf_count = quads[quads[parent_index].se].leaf_count + 1
               quads[child_index].next_in_leaf = quads[parent_index].se
               quads[parent_index].se = child_index
@@ -185,7 +185,7 @@ do
             quads[child_index].leaf_count = 1
             quads[parent_index].ne = child_index
           elseif quads[quads[parent_index].ne].type == 1 then
-            if quads[quads[parent_index].ne].leaf_count < leaf_size then
+            if quads[quads[parent_index].ne].leaf_count < leaf_size or quads[parent_index].size < 0.00001 then
               quads[child_index].leaf_count = quads[quads[parent_index].ne].leaf_count + 1
               quads[child_index].next_in_leaf = quads[parent_index].ne
               quads[parent_index].ne = child_index
