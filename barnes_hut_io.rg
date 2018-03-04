@@ -148,14 +148,16 @@ do
 end
 
 task print_bodies_csv_update(bodies : region(body), conf : Config, time_step : uint)
-  where reads(bodies.{index, mass_x, mass_y, speed_x, speed_y})
+  where reads(bodies.{index, mass_x, mass_y, speed_x, speed_y, eliminated})
 do
   var output_path : int8[1000]
   c.sprintf([&int8](output_path), "%s/%d.csv", conf.csv_dir, time_step)
 
   var fp = c.fopen(output_path, "w")
   for body in bodies do
-    c.fprintf(fp, "%d,%f,%f,%f,%f\n", body.index, body.mass_x, body.mass_y, body.speed_x, body.speed_y)
+    if [int](body.eliminated) == 0 then
+      c.fprintf(fp, "%d,%f,%f,%f,%f\n", body.index, body.mass_x, body.mass_y, body.speed_x, body.speed_y)
+    end
   end
 
   c.fclose(fp)
