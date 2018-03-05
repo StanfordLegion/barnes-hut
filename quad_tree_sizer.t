@@ -77,114 +77,172 @@ terra count(chunk : &quad_chunk, free : bool): uint
   return total
 end
 
-terra insert_in_leaf(child : &quad_placeholder, old_child : &quad_placeholder)
-  child.leaf_count = old_child.leaf_count + 1
-  child.next_in_leaf = old_child
-end
+terra add_placeholder(root: &quad_placeholder, body: &quad_placeholder, chunk : &quad_chunk, leaf_size : uint): uint
+  var parent_list : (&quad_placeholder)[1024]
+  var child_list : (&quad_placeholder)[1024]
+  parent_list[0] = root
+  child_list[0] = body
+  var traverse_index = 0
 
-terra insert_leaf_into_fork(new_fork : &quad_placeholder, leaf : &quad_placeholder, chunk : &quad_chunk, leaf_size : uint)
-  var current = leaf
-  while current ~= nil do
-    var next_in_leaf = current.next_in_leaf
-    current.next_in_leaf = nil
-    add_placeholder(new_fork, current, chunk, leaf_size)
-    current = next_in_leaf
-  end
-end
+  while traverse_index >= 0 do
+    regentlib.assert(traverse_index < 1024 - leaf_size - 1, "possible overflow")
+    var parent = parent_list[traverse_index]
+    var child = child_list[traverse_index]
+    traverse_index = traverse_index - 1
 
-terra add_placeholder(parent: &quad_placeholder, child: &quad_placeholder, chunk : &quad_chunk, leaf_size : uint): uint
-  var half_size = parent.size / 2
-  if child.mass_x <= parent.center_x then
-    if child.mass_y <= parent.center_y then
-      if parent.sw == nil then
-        child.leaf_count = 1
-        parent.sw = child
-      elseif parent.sw.type == 1 then
-        if parent.sw.leaf_count < leaf_size or parent.size < 0.00001 then
-          insert_in_leaf(child, parent.sw)
+    var half_size = parent.size / 2
+    if child.mass_x <= parent.center_x then
+      if child.mass_y <= parent.center_y then
+        if parent.sw == nil then
+          child.leaf_count = 1
           parent.sw = child
-        else
-          var new_fork = init_placeholder(chunk)
-          new_fork.type = 2
-          new_fork.center_x = parent.center_x - half_size / 2
-          new_fork.center_y = parent.center_y - half_size / 2
-          new_fork.size = half_size
+        elseif parent.sw.type == 1 then
+          if parent.sw.leaf_count < leaf_size or parent.size < 0.00001 then
+            child.leaf_count = parent.sw.leaf_count + 1
+            child.next_in_leaf = parent.sw
+            parent.sw = child
+          else
+            var new_fork = init_placeholder(chunk)
+            new_fork.type = 2
+            new_fork.center_x = parent.center_x - half_size / 2
+            new_fork.center_y = parent.center_y - half_size / 2
+            new_fork.size = half_size
 
-          insert_leaf_into_fork(new_fork, parent.sw, chunk, leaf_size)
-          add_placeholder(new_fork, child, chunk, leaf_size)
-          parent.sw = new_fork
+            var current = parent.sw
+            while current ~= nil do
+              var next_in_leaf = current.next_in_leaf
+              current.next_in_leaf = nil
+              traverse_index = traverse_index + 1
+              parent_list[traverse_index] = new_fork
+              child_list[traverse_index] = current
+              current = next_in_leaf
+            end
+
+            traverse_index = traverse_index + 1
+            parent_list[traverse_index] = new_fork
+            child_list[traverse_index] = child
+
+            parent.sw = new_fork
+          end
+        else
+          traverse_index = traverse_index + 1
+          parent_list[traverse_index] = parent.sw
+          child_list[traverse_index] = child
         end
       else
-        add_placeholder(parent.sw, child, chunk, leaf_size)
-      end
-    else
-      if parent.nw == nil then
-        child.leaf_count = 1
-        parent.nw = child
-      elseif parent.nw.type == 1 then
-        if parent.nw.leaf_count < leaf_size or parent.size < 0.00001 then
-          insert_in_leaf(child, parent.nw)
+        if parent.nw == nil then
+          child.leaf_count = 1
           parent.nw = child
-        else
-          var new_fork = init_placeholder(chunk)
-          new_fork.type = 2
-          new_fork.center_x = parent.center_x - half_size / 2
-          new_fork.center_y = parent.center_y + half_size / 2
-          new_fork.size = half_size
+        elseif parent.nw.type == 1 then
+          if parent.nw.leaf_count < leaf_size or parent.size < 0.00001 then
+            child.leaf_count = parent.nw.leaf_count + 1
+            child.next_in_leaf = parent.nw
+            parent.nw = child
+          else
+            var new_fork = init_placeholder(chunk)
+            new_fork.type = 2
+            new_fork.center_x = parent.center_x - half_size / 2
+            new_fork.center_y = parent.center_y + half_size / 2
+            new_fork.size = half_size
 
-          insert_leaf_into_fork(new_fork, parent.nw, chunk, leaf_size)
-          add_placeholder(new_fork, child, chunk, leaf_size)
-          parent.nw = new_fork
-        end
-      else
-        add_placeholder(parent.nw, child, chunk, leaf_size)
-      end      
-    end
-  else
-    if child.mass_y <= parent.center_y then
-      if parent.se == nil then
-        child.leaf_count = 1
-        parent.se = child
-      elseif parent.se.type == 1 then
-        if parent.se.leaf_count < leaf_size or parent.size < 0.00001 then
-          insert_in_leaf(child, parent.se)
-          parent.se = child
-        else
-          var new_fork = init_placeholder(chunk)
-          new_fork.type = 2
-          new_fork.center_x = parent.center_x + half_size / 2
-          new_fork.center_y = parent.center_y - half_size / 2
-          new_fork.size = half_size
+            var current = parent.nw
+            while current ~= nil do
+              var next_in_leaf = current.next_in_leaf
+              current.next_in_leaf = nil
+              traverse_index = traverse_index + 1
+              parent_list[traverse_index] = new_fork
+              child_list[traverse_index] = current
+              current = next_in_leaf
+            end
 
-          insert_leaf_into_fork(new_fork, parent.se, chunk, leaf_size)
-          add_placeholder(new_fork, child, chunk, leaf_size)
-          parent.se = new_fork
-        end
-      else
-        add_placeholder(parent.se, child, chunk, leaf_size)
+            traverse_index = traverse_index + 1
+            parent_list[traverse_index] = new_fork
+            child_list[traverse_index] = child
+
+            parent.nw = new_fork
+          end
+        else
+          traverse_index = traverse_index + 1
+          parent_list[traverse_index] = parent.nw
+          child_list[traverse_index] = child
+        end  
       end
     else
-      if parent.ne == nil then
-        child.leaf_count = 1
-        parent.ne = child
-      elseif parent.ne.type == 1 then
-        if parent.ne.leaf_count < leaf_size or parent.size < 0.00001 then
-          insert_in_leaf(child, parent.ne)
-          parent.ne = child
-        else
-          var new_fork = init_placeholder(chunk)
-          new_fork.type = 2
-          new_fork.center_x = parent.center_x + half_size / 2
-          new_fork.center_y = parent.center_y + half_size / 2
-          new_fork.size = half_size
+      if child.mass_y <= parent.center_y then
+        if parent.se == nil then
+          child.leaf_count = 1
+          parent.se = child
+        elseif parent.se.type == 1 then
+          if parent.se.leaf_count < leaf_size or parent.size < 0.00001 then
+            child.leaf_count = parent.se.leaf_count + 1
+            child.next_in_leaf = parent.se
+            parent.se = child
+          else
+            var new_fork = init_placeholder(chunk)
+            new_fork.type = 2
+            new_fork.center_x = parent.center_x + half_size / 2
+            new_fork.center_y = parent.center_y - half_size / 2
+            new_fork.size = half_size
 
-          insert_leaf_into_fork(new_fork, parent.ne, chunk, leaf_size)
-          add_placeholder(new_fork, child, chunk, leaf_size)
-          parent.ne = new_fork
+            var current = parent.se
+            while current ~= nil do
+              var next_in_leaf = current.next_in_leaf
+              current.next_in_leaf = nil
+              traverse_index = traverse_index + 1
+              parent_list[traverse_index] = new_fork
+              child_list[traverse_index] = current
+              current = next_in_leaf
+            end
+
+            traverse_index = traverse_index + 1
+            parent_list[traverse_index] = new_fork
+            child_list[traverse_index] = child
+
+            parent.se = new_fork
+          end
+        else
+          traverse_index = traverse_index + 1
+          parent_list[traverse_index] = parent.se
+          child_list[traverse_index] = child
         end
       else
-        add_placeholder(parent.ne, child, chunk, leaf_size)
-      end      
+        if parent.ne == nil then
+          child.leaf_count = 1
+          parent.ne = child
+        elseif parent.ne.type == 1 then
+          if parent.ne.leaf_count < leaf_size or parent.size < 0.00001 then
+            child.leaf_count = parent.ne.leaf_count + 1
+            child.next_in_leaf = parent.ne
+            parent.ne = child
+          else
+            var new_fork = init_placeholder(chunk)
+            new_fork.type = 2
+            new_fork.center_x = parent.center_x + half_size / 2
+            new_fork.center_y = parent.center_y + half_size / 2
+            new_fork.size = half_size
+
+            var current = parent.ne
+            while current ~= nil do
+              var next_in_leaf = current.next_in_leaf
+              current.next_in_leaf = nil
+              traverse_index = traverse_index + 1
+              parent_list[traverse_index] = new_fork
+              child_list[traverse_index] = current
+              current = next_in_leaf
+            end
+
+            traverse_index = traverse_index + 1
+            parent_list[traverse_index] = new_fork
+            child_list[traverse_index] = child
+
+            parent.ne = new_fork
+          end
+        else
+          traverse_index = traverse_index + 1
+          parent_list[traverse_index] = parent.ne
+          child_list[traverse_index] = child
+        end
+      end
     end
   end
 
