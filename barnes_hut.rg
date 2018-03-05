@@ -57,7 +57,7 @@ task size_quad(bodies : region(body), quad_size : region(uint), min_x : double, 
   writes (quad_size)
 do
   var chunk = create_quad_chunk(512)
-   var sector_x : int64 = sector % sector_precision
+  var sector_x : int64 = sector % sector_precision
   var sector_y : int64 = cmath.floor(sector / sector_precision)
   var center_x = min_x + (sector_x + 0.5) * size / sector_precision
   var center_y = min_y + (sector_y + 0.5) * size / sector_precision
@@ -207,6 +207,12 @@ task main()
 
   var sector_precision : uint = pow(2, conf.N)
 
+  var quad_range_space = ispace(int1d, sector_precision * sector_precision + 1)
+  var quad_ranges = region(quad_range_space, rect1d)
+  var quad_sizes = region(ispace(ptr, sector_precision * sector_precision), uint)
+  var sector_index = ispace(int1d, sector_precision * sector_precision)
+  var sector_quad_sizes = partition(equal, quad_sizes, sector_index)
+
   for t=0,conf.time_steps do
       var iter_start = c.legion_get_current_time_in_micros()
       
@@ -233,13 +239,9 @@ task main()
         assign_sectors(bodies_partition[i], min_x, min_y, size, sector_precision)
       end
       
-      var sector_index = ispace(int1d, sector_precision * sector_precision)
       var bodies_by_sector = partition(bodies.sector, sector_index)
-      var quad_sizes = region(ispace(ptr, sector_precision * sector_precision), uint)
-      var sector_quad_sizes = partition(equal, quad_sizes, sector_index)
 
       if conf.fixed_partition_size == -1 then
-
         __demand(__parallel)
         for i in sector_index do
           size_quad(bodies_by_sector[i], sector_quad_sizes[i], min_x, min_y, size, sector_precision, conf.leaf_size, i)
@@ -250,8 +252,6 @@ task main()
         end
       end
 
-      var quad_range_space = ispace(int1d, sector_precision * sector_precision + 1)
-      var quad_ranges = region(quad_range_space, rect1d)
       var offset = 0
       for i=0,sector_precision*sector_precision do
         quad_ranges[i] = rect1d({offset, offset + quad_sizes[i] - 1})
@@ -374,17 +374,17 @@ task main()
       var root_mass_y = root.mass_y
       var root_mass = root.mass
 
-      -- __demand(__parallel)
+      __demand(__parallel)
       for x=0,sector_precision do
-        -- eliminate_outliers(bodies_by_sector[x], sector_quad_sizes[x], root_mass_x, root_mass_y, root_mass, size, x)
+        eliminate_outliers(bodies_by_sector[x], sector_quad_sizes[x], root_mass_x, root_mass_y, root_mass, size, x)
       end
 
       var start_index = sector_precision * (sector_precision - 1)
       var end_index = sector_precision * sector_precision - 1
 
-      -- __demand(__parallel)
+      __demand(__parallel)
       for x=start_index,end_index do
-        -- eliminate_outliers(bodies_by_sector[x], sector_quad_sizes[x], root_mass_x, root_mass_y, root_mass, size, x)
+        eliminate_outliers(bodies_by_sector[x], sector_quad_sizes[x], root_mass_x, root_mass_y, root_mass, size, x)
       end
 
       start_index = sector_precision
@@ -392,7 +392,7 @@ task main()
 
       -- __demand(__parallel)
       for y=start_index,end_index,sector_precision do
-        -- eliminate_outliers(bodies_by_sector[y], sector_quad_sizes[y], root_mass_x, root_mass_y, root_mass, size, y)
+        eliminate_outliers(bodies_by_sector[y], sector_quad_sizes[y], root_mass_x, root_mass_y, root_mass, size, y)
       end
 
       start_index = sector_precision + sector_precision - 1
@@ -400,11 +400,9 @@ task main()
 
       -- __demand(__parallel)
       for y=start_index,end_index,sector_precision do
-        -- eliminate_outliers(bodies_by_sector[y], sector_quad_sizes[y], root_mass_x, root_mass_y, root_mass, size, y)
+        eliminate_outliers(bodies_by_sector[y], sector_quad_sizes[y], root_mass_x, root_mass_y, root_mass, size, y)
       end
 
-      __delete(quad_ranges)
-      __delete(quad_sizes)
       __delete(quads)
 
       var iter_end = c.legion_get_current_time_in_micros()
