@@ -213,6 +213,14 @@ task main()
   var sector_index = ispace(int1d, sector_precision * sector_precision)
   var sector_quad_sizes = partition(equal, quad_sizes, sector_index)
 
+  var num_quads = num_bodies * 2
+  for i=0,conf.N do
+    num_quads += pow(4, i)
+  end
+  num_quads += sector_precision*sector_precision
+
+  var quads = region(ispace(int1d, num_quads), quad)
+
   for t=0,conf.time_steps do
       var iter_start = c.legion_get_current_time_in_micros()
       
@@ -258,13 +266,8 @@ task main()
         offset += quad_sizes[i]
       end
 
-      var num_quads = offset
-      for i=0,conf.N do
-        num_quads += pow(4, i)
-      end
       quad_ranges[sector_precision * sector_precision] = rect1d({offset, num_quads - 1})
 
-      var quads = region(ispace(int1d, num_quads), quad)
       fill(quads.{nw, sw, ne, se, next_in_leaf}, -1)
       fill(quads.{mass_x, mass_y, mass, total, type}, 0)
 
@@ -402,8 +405,6 @@ task main()
       for y=start_index,end_index,sector_precision do
         eliminate_outliers(bodies_by_sector[y], sector_quad_sizes[y], root_mass_x, root_mass_y, root_mass, size, y)
       end
-
-      __delete(quads)
 
       var iter_end = c.legion_get_current_time_in_micros()
       c.printf("Iteration time: %d ms\n", (iter_end - iter_start) / 1000)
