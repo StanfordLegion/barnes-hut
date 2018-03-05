@@ -100,7 +100,7 @@ terra add_placeholder(parent: &quad_placeholder, child: &quad_placeholder, chunk
         child.leaf_count = 1
         parent.sw = child
       elseif parent.sw.type == 1 then
-        if parent.sw.leaf_count < leaf_size then
+        if parent.sw.leaf_count < leaf_size or parent.size < 0.00001 then
           insert_in_leaf(child, parent.sw)
           parent.sw = child
         else
@@ -122,7 +122,7 @@ terra add_placeholder(parent: &quad_placeholder, child: &quad_placeholder, chunk
         child.leaf_count = 1
         parent.nw = child
       elseif parent.nw.type == 1 then
-        if parent.nw.leaf_count < leaf_size then
+        if parent.nw.leaf_count < leaf_size or parent.size < 0.00001 then
           insert_in_leaf(child, parent.nw)
           parent.nw = child
         else
@@ -146,7 +146,7 @@ terra add_placeholder(parent: &quad_placeholder, child: &quad_placeholder, chunk
         child.leaf_count = 1
         parent.se = child
       elseif parent.se.type == 1 then
-        if parent.se.leaf_count < leaf_size then
+        if parent.se.leaf_count < leaf_size or parent.size < 0.00001 then
           insert_in_leaf(child, parent.se)
           parent.se = child
         else
@@ -168,7 +168,7 @@ terra add_placeholder(parent: &quad_placeholder, child: &quad_placeholder, chunk
         child.leaf_count = 1
         parent.ne = child
       elseif parent.ne.type == 1 then
-        if parent.ne.leaf_count < leaf_size then
+        if parent.ne.leaf_count < leaf_size or parent.size < 0.00001 then
           insert_in_leaf(child, parent.ne)
           parent.ne = child
         else
