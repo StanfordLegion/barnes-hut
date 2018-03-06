@@ -56,7 +56,7 @@ task size_quad(bodies : region(body), quad_size : region(uint), min_x : double, 
   where reads(bodies.{mass_x, mass_y, index}),
   writes (quad_size)
 do
-  var chunk = create_quad_chunk(512)
+  var chunk = create_quad_chunk(2048)
   var sector_x : int64 = sector % sector_precision
   var sector_y : int64 = cmath.floor(sector / sector_precision)
   var center_x = min_x + (sector_x + 0.5) * size / sector_precision
@@ -213,7 +213,7 @@ task main()
   var sector_index = ispace(int1d, sector_precision * sector_precision)
   var sector_quad_sizes = partition(equal, quad_sizes, sector_index)
 
-  var num_quads = num_bodies * 2
+  var num_quads = min(num_bodies * 2, 2400000)
   for i=0,conf.N do
     num_quads += pow(4, i)
   end
@@ -229,7 +229,7 @@ task main()
 
       boundaries[0] = { min_x = bodies[0].mass_x, min_y = bodies[0].mass_y, max_x = bodies[0].mass_x, max_y = bodies[0].mass_y }
       
-      var body_partition_index = ispace(ptr, conf.parallelism)
+      var body_partition_index = ispace(ptr, conf.parallelism * 2)
 
       var bodies_partition = partition(equal, bodies, body_partition_index)
       for i in body_partition_index do
