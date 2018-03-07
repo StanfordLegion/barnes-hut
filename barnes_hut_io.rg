@@ -73,7 +73,7 @@ terra parse_input_args()
     c.exit(-1)
   end
 
-  c.printf("settings: time_steps=%d parallelism=%d N=%d leaf_size=%d input_file=%s", conf.time_steps, conf.parallelism, conf.N, conf.leaf_size, conf.input_file)
+  c.printf("settings: time_steps=%d parallelism=%d N=%d leaf_size=%d max_depth=%d input_file=%s", conf.time_steps, conf.parallelism, conf.N, conf.leaf_size, conf.max_depth, conf.input_file)
 
   if conf.csv_dir_set then
     c.printf(" csv_dir=%s", conf.csv_dir)
