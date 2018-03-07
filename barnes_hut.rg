@@ -374,6 +374,12 @@ do
   for y=start_index,end_index,sector_precision do
     eliminate_outliers(bodies_by_sector[y], sector_quad_sizes[y], root_mass_x, root_mass_y, root_mass, size, y)
   end
+
+  __delete(elimination_partition)
+  __delete(bodies_partition)
+  __delete(bodies_by_sector)
+  __delete(sector_quad_sizes)
+  __delete(quad_range_by_sector)
 end
 
 task main()
