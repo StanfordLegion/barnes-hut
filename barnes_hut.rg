@@ -52,7 +52,7 @@ do
   end
 end
 
-task size_quad(bodies : region(body), quad_size : region(uint), min_x : double, min_y : double, size : double, sector_precision : uint, leaf_size : uint, sector : int1d)
+task size_quad(bodies : region(body), quad_size : region(uint), min_x : double, min_y : double, size : double, sector_precision : uint, leaf_size : uint, min_size : double, sector : int1d)
   where reads(bodies.{mass_x, mass_y, index}),
   writes (quad_size)
 do
@@ -73,7 +73,7 @@ do
     body_quad.mass_x = body.mass_x
     body_quad.mass_y = body.mass_y
     body_quad.type = 1
-    add_placeholder(root, body_quad, chunk, leaf_size)
+    add_placeholder(root, body_quad, chunk, leaf_size, min_size)
   end
 
   quad_size[sector] = count(chunk, true)
@@ -241,6 +241,7 @@ task main()
       var size_x = boundaries[0].max_x - min_x
       var size_y = boundaries[0].max_y - min_y
       var size = max(size_x, size_y)
+      var min_size = size / conf.max_depth
 
       __demand(__parallel)
       for i in body_partition_index do
@@ -252,7 +253,7 @@ task main()
       if conf.fixed_partition_size == -1 then
         __demand(__parallel)
         for i in sector_index do
-          size_quad(bodies_by_sector[i], sector_quad_sizes[i], min_x, min_y, size, sector_precision, conf.leaf_size, i)
+          size_quad(bodies_by_sector[i], sector_quad_sizes[i], min_x, min_y, size, sector_precision, conf.leaf_size, min_size, i)
         end
       else
         for i in sector_index do
@@ -279,7 +280,7 @@ task main()
 
       __demand(__parallel)
       for i in sector_index do
-        build_quad(bodies_by_sector[i], quads_by_sector_disjoint[i], quad_ranges, min_x, min_y, size, sector_precision, conf.leaf_size, i)
+        build_quad(bodies_by_sector[i], quads_by_sector_disjoint[i], quad_ranges, min_x, min_y, size, sector_precision, conf.leaf_size, min_size, i)
       end
 
       var to_merge : int[64][64]

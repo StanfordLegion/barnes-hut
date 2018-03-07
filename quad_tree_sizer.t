@@ -77,7 +77,7 @@ terra count(chunk : &quad_chunk, free : bool): uint
   return total
 end
 
-terra add_placeholder(root: &quad_placeholder, body: &quad_placeholder, chunk : &quad_chunk, leaf_size : uint): uint
+terra add_placeholder(root: &quad_placeholder, body: &quad_placeholder, chunk : &quad_chunk, leaf_size : uint, min_size : double): uint
   var parent_list : (&quad_placeholder)[1024]
   var child_list : (&quad_placeholder)[1024]
   parent_list[0] = root
@@ -97,7 +97,7 @@ terra add_placeholder(root: &quad_placeholder, body: &quad_placeholder, chunk : 
           child.leaf_count = 1
           parent.sw = child
         elseif parent.sw.type == 1 then
-          if parent.sw.leaf_count < leaf_size or parent.size < 0.00001 then
+          if parent.sw.leaf_count < leaf_size or parent.size < min_size then
             child.leaf_count = parent.sw.leaf_count + 1
             child.next_in_leaf = parent.sw
             parent.sw = child
@@ -134,7 +134,7 @@ terra add_placeholder(root: &quad_placeholder, body: &quad_placeholder, chunk : 
           child.leaf_count = 1
           parent.nw = child
         elseif parent.nw.type == 1 then
-          if parent.nw.leaf_count < leaf_size or parent.size < 0.00001 then
+          if parent.nw.leaf_count < leaf_size or parent.size < min_size then
             child.leaf_count = parent.nw.leaf_count + 1
             child.next_in_leaf = parent.nw
             parent.nw = child
@@ -173,7 +173,7 @@ terra add_placeholder(root: &quad_placeholder, body: &quad_placeholder, chunk : 
           child.leaf_count = 1
           parent.se = child
         elseif parent.se.type == 1 then
-          if parent.se.leaf_count < leaf_size or parent.size < 0.00001 then
+          if parent.se.leaf_count < leaf_size or parent.size < min_size then
             child.leaf_count = parent.se.leaf_count + 1
             child.next_in_leaf = parent.se
             parent.se = child
@@ -210,7 +210,7 @@ terra add_placeholder(root: &quad_placeholder, body: &quad_placeholder, chunk : 
           child.leaf_count = 1
           parent.ne = child
         elseif parent.ne.type == 1 then
-          if parent.ne.leaf_count < leaf_size or parent.size < 0.00001 then
+          if parent.ne.leaf_count < leaf_size or parent.size < min_size then
             child.leaf_count = parent.ne.leaf_count + 1
             child.next_in_leaf = parent.ne
             parent.ne = child

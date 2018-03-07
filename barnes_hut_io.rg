@@ -17,15 +17,7 @@ struct Config {
   N : uint,
   leaf_size : uint
   fixed_partition_size : uint,
-}
-
-struct ParsedLine {
-  index : uint
-  mass_x : double,
-  mass_y : double,
-  speed_x : double,
-  speed_y : double,
-  mass : double,
+  max_depth : uint,
 }
 
 terra parse_input_args()
@@ -38,6 +30,7 @@ terra parse_input_args()
   conf.N = 4
   conf.parallelism = 16
   conf.fixed_partition_size = -1
+  conf.max_depth = -1
 
   var args = c.legion_runtime_get_input_args()
 
@@ -69,6 +62,9 @@ terra parse_input_args()
     elseif cstring.strcmp(args.argv[i], "-x") == 0 then
       i = i + 1
       conf.fixed_partition_size = std.atoi(args.argv[i])
+    elseif cstring.strcmp(args.argv[i], "-m") == 0 then
+      i = i + 1
+      conf.max_depth = std.atoi(args.argv[i])
     end
   end
 
