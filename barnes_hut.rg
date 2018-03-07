@@ -275,12 +275,12 @@ task main()
       var quad_range_by_sector = partition(equal, quad_ranges, quad_range_space) 
       var quads_by_sector = image(quads, quad_range_by_sector, quad_ranges)
 
-      var quads_by_sector_colors = quads_by_sector.colors
-      var quads_by_sector_disjoint = dynamic_cast(partition(disjoint, quads, quads_by_sector_colors), quads_by_sector)
+      -- var quads_by_sector_colors = quads_by_sector.colors
+      -- var quads_by_sector_disjoint = dynamic_cast(partition(disjoint, quads, quads_by_sector_colors), quads_by_sector)
 
-      __demand(__parallel)
+      -- __demand(__parallel)
       for i in sector_index do
-        build_quad(bodies_by_sector[i], quads_by_sector_disjoint[i], quad_ranges, min_x, min_y, size, sector_precision, conf.leaf_size, min_size, i)
+        build_quad(bodies_by_sector[i], quads_by_sector[i], quad_ranges, min_x, min_y, size, sector_precision, conf.leaf_size, min_size, i)
       end
 
       var to_merge : int[64][64]
