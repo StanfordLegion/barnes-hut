@@ -407,6 +407,11 @@ task main()
         eliminate_outliers(bodies_by_sector[y], sector_quad_sizes[y], root_mass_x, root_mass_y, root_mass, size, y)
       end
 
+      __delete(elimination_partition)
+      __delete(bodies_partition)
+      __delete(bodies_by_sector)
+      __delete(quad_range_by_sector)
+
       var iter_end = c.legion_get_current_time_in_micros()
       c.printf("Iteration time: %d ms\n", (iter_end - iter_start) / 1000)
 
