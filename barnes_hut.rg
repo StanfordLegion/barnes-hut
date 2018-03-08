@@ -61,7 +61,7 @@ do
     counter += 1
   end
 
-  quad_size[sector] = counter * 2
+  quad_size[sector] = counter * 2 + 1
 end
 
 task update_body_positions(bodies : region(body), quads : region(ispace(int1d), quad), root_index : uint)
