@@ -228,6 +228,7 @@ task main()
       var size = max(size_x, size_y)
       var min_size = size / conf.max_depth
 
+      fill(quad_sizes, 0)
       -- __demand(__parallel)
       for i in body_partition_index do
         assign_sectors(bodies_partition[i], quad_sizes, min_x, min_y, size, sector_precision)
