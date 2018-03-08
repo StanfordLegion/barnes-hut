@@ -198,7 +198,7 @@ task main()
   var sector_index = ispace(int1d, sector_precision * sector_precision)
   var sector_quad_sizes = partition(equal, quad_sizes, sector_index)
 
-  var num_quads = min(num_bodies * 2, 2400000)
+  var num_quads = num_bodies * 3 / 2
   for i=0,conf.N do
     num_quads += pow(4, i)
   end
@@ -238,8 +238,8 @@ task main()
 
       var offset = 0
       for i=0,sector_precision*sector_precision do
-        quad_ranges[i] = rect1d({offset, offset + quad_sizes[i] * 2})
-        offset += quad_sizes[i] * 2 + 1
+        quad_ranges[i] = rect1d({offset, offset + quad_sizes[i] * 3 / 2})
+        offset += quad_sizes[i] * 3 / 2 + 1
       end
 
       quad_ranges[sector_precision * sector_precision] = rect1d({offset, num_quads - 1})
