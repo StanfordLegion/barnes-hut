@@ -32,11 +32,17 @@ do
   end
 end
 
-task assign_sectors(bodies : region(body), min_x : double, min_y : double, size : double, sector_precision : uint)
+task assign_sectors(bodies : region(body), quad_sizes : region(uint), min_x : double, min_y : double, size : double, sector_precision : uint)
   where
   reads(bodies.{mass_x, mass_y, sector}),
-  writes(bodies.sector)
+  writes(bodies.sector),
+  reads reduces+(quad_sizes)
 do
+  var quad_size_array : uint[1024]
+  for i=0,sector_precision*sector_precision do
+    quad_size_array[i] = 0
+  end
+
   for body in bodies do
     var sector_x : int64 = cmath.floor((body.mass_x - min_x) / (size / sector_precision))
     if (sector_x >= sector_precision) then
@@ -48,20 +54,14 @@ do
       sector_y = sector_y - 1
     end
 
-    body.sector = sector_x + sector_y * sector_precision
-  end
-end
-
-task size_quad(bodies : region(body), quad_size : region(uint), min_x : double, min_y : double, size : double, sector_precision : uint, leaf_size : uint, min_size : double, sector : int1d)
-  where reads(bodies.{mass_x, mass_y, index}),
-  writes (quad_size)
-do
-  var counter = 0
-  for body in bodies do
-    counter += 1
+    var sector = sector_x + sector_y * sector_precision
+    body.sector = sector
+    quad_size_array[sector] += 1
   end
 
-  quad_size[sector] = counter * 2 + 1
+  for i=0,sector_precision*sector_precision do
+    quad_sizes[i] += quad_size_array[i]
+  end
 end
 
 task update_body_positions(bodies : region(body), quads : region(ispace(int1d), quad), root_index : uint)
@@ -228,28 +228,17 @@ task main()
       var size = max(size_x, size_y)
       var min_size = size / conf.max_depth
 
-      __demand(__parallel)
+      -- __demand(__parallel)
       for i in body_partition_index do
-        assign_sectors(bodies_partition[i], min_x, min_y, size, sector_precision)
+        assign_sectors(bodies_partition[i], quad_sizes, min_x, min_y, size, sector_precision)
       end
       
       var bodies_by_sector = partition(bodies.sector, sector_index)
 
-      if conf.fixed_partition_size == -1 then
-        __demand(__parallel)
-        for i in sector_index do
-          size_quad(bodies_by_sector[i], sector_quad_sizes[i], min_x, min_y, size, sector_precision, conf.leaf_size, min_size, i)
-        end
-      else
-        for i in sector_index do
-          quad_sizes[i] = conf.fixed_partition_size
-        end
-      end
-
       var offset = 0
       for i=0,sector_precision*sector_precision do
-        quad_ranges[i] = rect1d({offset, offset + quad_sizes[i] - 1})
-        offset += quad_sizes[i]
+        quad_ranges[i] = rect1d({offset, offset + quad_sizes[i] * 2})
+        offset += quad_sizes[i] * 2 + 1
       end
 
       quad_ranges[sector_precision * sector_precision] = rect1d({offset, num_quads - 1})
