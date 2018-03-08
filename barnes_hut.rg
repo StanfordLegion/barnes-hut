@@ -275,8 +275,8 @@ task main()
       var quad_range_by_sector = partition(equal, quad_ranges, quad_range_space) 
       var quads_by_sector = image(quads, quad_range_by_sector, quad_ranges)
 
-      -- var quads_by_sector_colors = quads_by_sector.colors
-      -- var quads_by_sector_disjoint = dynamic_cast(partition(disjoint, quads, quads_by_sector_colors), quads_by_sector)
+      var quads_by_sector_colors = quads_by_sector.colors
+      var quads_by_sector_disjoint = dynamic_cast(partition(disjoint, quads, quads_by_sector_colors), quads_by_sector)
 
       -- __demand(__parallel)
       for i in sector_index do
@@ -411,6 +411,8 @@ task main()
       __delete(bodies_partition)
       __delete(bodies_by_sector)
       __delete(quad_range_by_sector)
+      __delete(quads_by_sector)
+      __delete(quads_by_sector_disjoint)
 
       var iter_end = c.legion_get_current_time_in_micros()
       c.printf("Iteration time: %d ms\n", (iter_end - iter_start) / 1000)
