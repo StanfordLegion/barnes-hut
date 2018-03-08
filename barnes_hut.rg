@@ -56,27 +56,12 @@ task size_quad(bodies : region(body), quad_size : region(uint), min_x : double, 
   where reads(bodies.{mass_x, mass_y, index}),
   writes (quad_size)
 do
-  var chunk = create_quad_chunk(2048)
-  var sector_x : int64 = sector % sector_precision
-  var sector_y : int64 = cmath.floor(sector / sector_precision)
-  var center_x = min_x + (sector_x + 0.5) * size / sector_precision
-  var center_y = min_y + (sector_y + 0.5) * size / sector_precision
-
-  var root = init_placeholder(chunk)
-  root.center_x = center_x
-  root.center_y = center_y
-  root.size = size / sector_precision
-  root.type = 2
-
+  var counter = 0
   for body in bodies do
-    var body_quad = init_placeholder(chunk)
-    body_quad.mass_x = body.mass_x
-    body_quad.mass_y = body.mass_y
-    body_quad.type = 1
-    add_placeholder(root, body_quad, chunk, leaf_size, min_size)
+    counter += 1
   end
 
-  quad_size[sector] = count(chunk, true)
+  quad_size[sector] = counter * 2
 end
 
 task update_body_positions(bodies : region(body), quads : region(ispace(int1d), quad), root_index : uint)
