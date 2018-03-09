@@ -161,7 +161,7 @@ end
 
 task print_bodies_svg(bodies : region(body), boundaries : region(boundary), conf : Config, time_step : uint)
   where
-    reads(bodies.{index, mass_x, mass_y, speed_x, speed_y}),
+    reads(bodies.{index, mass, mass_x, mass_y, speed_x, speed_y}),
     reads(boundaries)
 do
   var output_path : int8[1000]
