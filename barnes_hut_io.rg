@@ -144,7 +144,7 @@ do
 end
 
 task print_bodies_csv_update(bodies : region(body), conf : Config, time_step : uint)
-  where reads(bodies.{index, mass_x, mass_y, speed_x, speed_y, eliminated})
+  where reads(bodies.{index, mass, mass_x, mass_y, speed_x, speed_y, eliminated})
 do
   var output_path : int8[1000]
   c.sprintf([&int8](output_path), "%s/%d.csv", conf.csv_dir, time_step)
@@ -161,7 +161,7 @@ end
 
 task print_bodies_svg(bodies : region(body), boundaries : region(boundary), conf : Config, time_step : uint)
   where
-    reads(bodies.{index, mass, mass_x, mass_y, speed_x, speed_y}),
+    reads(bodies.{index, mass_x, mass_y, speed_x, speed_y}),
     reads(boundaries)
 do
   var output_path : int8[1000]
