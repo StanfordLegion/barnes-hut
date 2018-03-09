@@ -27,7 +27,7 @@ terra parse_input_args()
   conf.csv_dir_set = false
   conf.svg_dir_set = false
   conf.leaf_size = 32
-  conf.N = 4
+  conf.N = 3
   conf.parallelism = 16
   conf.fixed_partition_size = -1
   conf.max_depth = -1
@@ -151,9 +151,9 @@ do
 
   var fp = c.fopen(output_path, "w")
   for body in bodies do
-    if [int](body.eliminated) == 0 then
-      c.fprintf(fp, "%d,%f,%f,%f,%f\n", body.index, body.mass_x, body.mass_y, body.speed_x, body.speed_y)
-    end
+    -- if [int](body.eliminated) == 0 then
+      c.fprintf(fp, "%d,%f,%f,%f,%f,%f\n", body.index, body.mass_x, body.mass_y, body.speed_x, body.speed_y, body.mass)
+    -- end
   end
 
   c.fclose(fp)
