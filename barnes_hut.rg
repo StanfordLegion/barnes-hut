@@ -332,8 +332,8 @@ task main()
 
       var root_index = allocation_index + 1
       __demand(__parallel)
-      for i in body_partition_index do
-        update_body_positions(bodies_partition[i], quads, root_index)
+      for i in sector_index do
+        update_body_positions(bodies_by_sector[i], quads, root_index)
       end
 
       var root = quads[root_index]
