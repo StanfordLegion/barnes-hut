@@ -32,17 +32,11 @@ do
   end
 end
 
-task assign_sectors(bodies : region(body), quad_sizes : region(uint), min_x : double, min_y : double, size : double, sector_precision : uint)
+task assign_sectors(bodies : region(body), min_x : double, min_y : double, size : double, sector_precision : uint)
   where
-  reads(bodies.{mass_x, mass_y, sector}),
-  writes(bodies.sector),
-  reads reduces+(quad_sizes)
+    reads(bodies.{mass_x, mass_y}),
+    writes(bodies.sector)
 do
-  var quad_size_array : uint[1024]
-  for i=0,sector_precision*sector_precision do
-    quad_size_array[i] = 0
-  end
-
   for body in bodies do
     var sector_x : int64 = cmath.floor((body.mass_x - min_x) / (size / sector_precision))
     if (sector_x >= sector_precision) then
@@ -56,11 +50,6 @@ do
 
     var sector = sector_x + sector_y * sector_precision
     body.sector = sector
-    quad_size_array[sector] += 1
-  end
-
-  for i=0,sector_precision*sector_precision do
-    quad_sizes[i] += quad_size_array[i]
   end
 end
 
@@ -142,26 +131,23 @@ do
   end
 end
 
-task eliminate_outliers(bodies : region(body), quad_size : region(uint), root_mass_x : double, root_mass_y : double, root_mass : double, sector_size : double, sector : int1d)
+task eliminate_outliers(bodies : region(body), root_mass_x : double, root_mass_y : double, root_mass : double, sector_size : double)
 where
   reads(bodies.{mass_x, mass_y, speed_x, speed_y}),
-  reads(quad_size),
   writes(bodies.eliminated)
 do
-  if quad_size[sector] < elimination_quantity then
-    for body in bodies do
-      var dx = root_mass_x - body.mass_x
-      var dy = root_mass_y - body.mass_y
-      var d = sqrt(dx * dx + dy * dy)
-      if d > elimination_threshold * sector_size then
-        var nx = dx / d
-        var ny = dy / d
-        var relative_speed = body.speed_x * nx + body.speed_y * ny
-        if relative_speed < 0 then
-          var escape_speed = sqrt(2 * gee * root_mass / d)
-          if relative_speed < -2 * escape_speed then
-            body.eliminated = 1
-          end
+  for body in bodies do
+    var dx = root_mass_x - body.mass_x
+    var dy = root_mass_y - body.mass_y
+    var d = sqrt(dx * dx + dy * dy)
+    if d > elimination_threshold * sector_size then
+      var nx = dx / d
+      var ny = dy / d
+      var relative_speed = body.speed_x * nx + body.speed_y * ny
+      if relative_speed < 0 then
+        var escape_speed = sqrt(2 * gee * root_mass / d)
+        if relative_speed < -2 * escape_speed then
+          body.eliminated = 1
         end
       end
     end
@@ -194,9 +180,7 @@ task main()
 
   var quad_range_space = ispace(int1d, sector_precision * sector_precision + 1)
   var quad_ranges = region(quad_range_space, rect1d)
-  var quad_sizes = region(ispace(ptr, sector_precision * sector_precision), uint)
   var sector_index = ispace(int1d, sector_precision * sector_precision)
-  var sector_quad_sizes = partition(equal, quad_sizes, sector_index)
 
   var num_quads = num_bodies * 12 / 5
   for i=0,conf.N do
@@ -228,18 +212,19 @@ task main()
       var size = max(size_x, size_y)
       var min_size = size / conf.max_depth
 
-      fill(quad_sizes, 0)
-      -- __demand(__parallel)
+      __demand(__parallel)
       for i in body_partition_index do
-        assign_sectors(bodies_partition[i], quad_sizes, min_x, min_y, size, sector_precision)
+        assign_sectors(bodies_partition[i], min_x, min_y, size, sector_precision)
       end
       
       var bodies_by_sector = partition(bodies.sector, sector_index)
 
       var offset = 0
       for i=0,sector_precision*sector_precision do
-        quad_ranges[i] = rect1d({offset, offset + quad_sizes[i] * 12 / 5})
-        offset += quad_sizes[i] * 12 / 5 + 1
+        var current = bodies_by_sector[i]
+        var quad_size_estimate = current.ispace.volume * 12 / 5
+        quad_ranges[i] = rect1d({offset, offset + quad_size_estimate})
+        offset += quad_size_estimate + 1
       end
 
       quad_ranges[sector_precision * sector_precision] = rect1d({offset, num_quads - 1})
@@ -255,7 +240,8 @@ task main()
 
       -- __demand(__parallel)
       for i in sector_index do
-        if quad_sizes[i] > 0 then
+        var current = bodies_by_sector[i]
+        if current.ispace.volume > 0 then
           build_quad(bodies_by_sector[i], quads_by_sector_disjoint[i], quad_ranges, min_x, min_y, size, sector_precision, conf.leaf_size, min_size, i)
         end
       end
@@ -357,8 +343,9 @@ task main()
 
       -- __demand(__parallel)
       for x=0,sector_precision do
-        if quad_sizes[x] > 0 then
-          eliminate_outliers(bodies_by_sector[x], sector_quad_sizes[x], root_mass_x, root_mass_y, root_mass, size, x)
+        var current = bodies_by_sector[x]
+        if current.ispace.volume < elimination_quantity then
+          eliminate_outliers(bodies_by_sector[x], root_mass_x, root_mass_y, root_mass, size)
         end
       end
 
@@ -367,8 +354,9 @@ task main()
 
       -- __demand(__parallel)
       for x=start_index,end_index do
-        if quad_sizes[x] > 0 then
-          eliminate_outliers(bodies_by_sector[x], sector_quad_sizes[x], root_mass_x, root_mass_y, root_mass, size, x)
+        var current = bodies_by_sector[x]
+        if current.ispace.volume < elimination_quantity then
+          eliminate_outliers(bodies_by_sector[x], root_mass_x, root_mass_y, root_mass, size)
         end
       end
 
@@ -377,8 +365,9 @@ task main()
 
       -- __demand(__parallel)
       for y=start_index,end_index,sector_precision do
-        if quad_sizes[y] > 0 then
-          eliminate_outliers(bodies_by_sector[y], sector_quad_sizes[y], root_mass_x, root_mass_y, root_mass, size, y)
+        var current = bodies_by_sector[y]
+        if current.ispace.volume < elimination_quantity then
+          eliminate_outliers(bodies_by_sector[y], root_mass_x, root_mass_y, root_mass, size)
         end
       end
 
@@ -387,8 +376,9 @@ task main()
 
       -- __demand(__parallel)
       for y=start_index,end_index,sector_precision do
-        if quad_sizes[y] > 0 then
-          eliminate_outliers(bodies_by_sector[y], sector_quad_sizes[y], root_mass_x, root_mass_y, root_mass, size, y)
+        var current = bodies_by_sector[y]
+        if current.ispace.volume < elimination_quantity then
+          eliminate_outliers(bodies_by_sector[y], root_mass_x, root_mass_y, root_mass, size)
         end
       end
 
@@ -410,6 +400,7 @@ task main()
         print_bodies_svg(bodies, boundaries, conf, t+1)
       end
   end
+
   var ts_end = c.legion_get_current_time_in_micros()
   c.printf("Total time: %d ms\n", (ts_end - ts_start) / 1000)
 end
