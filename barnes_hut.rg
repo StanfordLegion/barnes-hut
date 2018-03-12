@@ -357,7 +357,7 @@ task main()
 
       -- __demand(__parallel)
       for x=0,sector_precision do
-        if sector_quad_sizes[x] > 0 then
+        if quad_sizes[x] > 0 then
           eliminate_outliers(bodies_by_sector[x], sector_quad_sizes[x], root_mass_x, root_mass_y, root_mass, size, x)
         end
       end
@@ -367,7 +367,7 @@ task main()
 
       -- __demand(__parallel)
       for x=start_index,end_index do
-        if sector_quad_sizes[x] > 0 then
+        if quad_sizes[x] > 0 then
           eliminate_outliers(bodies_by_sector[x], sector_quad_sizes[x], root_mass_x, root_mass_y, root_mass, size, x)
         end
       end
@@ -377,7 +377,7 @@ task main()
 
       -- __demand(__parallel)
       for y=start_index,end_index,sector_precision do
-        if sector_quad_sizes[y] > 0 then
+        if quad_sizes[y] > 0 then
           eliminate_outliers(bodies_by_sector[y], sector_quad_sizes[y], root_mass_x, root_mass_y, root_mass, size, y)
         end
       end
@@ -387,7 +387,7 @@ task main()
 
       -- __demand(__parallel)
       for y=start_index,end_index,sector_precision do
-        if sector_quad_sizes[y] > 0 then
+        if quad_sizes[y] > 0 then
           eliminate_outliers(bodies_by_sector[y], sector_quad_sizes[y], root_mass_x, root_mass_y, root_mass, size, y)
         end
       end
