@@ -210,7 +210,7 @@ task main()
       var size_x = boundaries[0].max_x - min_x
       var size_y = boundaries[0].max_y - min_y
       var size = max(size_x, size_y)
-      var min_size = size / conf.max_depth
+      var min_size = max(size / conf.max_depth, 0.0001)
 
       __demand(__parallel)
       for i in body_partition_index do
