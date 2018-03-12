@@ -390,7 +390,6 @@ task main()
       __delete(quads_by_sector_disjoint)
 
       var iter_end = c.legion_get_current_time_in_micros()
-      c.printf("Iteration time: %d ms\n", (iter_end - iter_start) / 1000)
 
       if conf.csv_dir_set then
         print_bodies_csv_update(bodies, conf, t+1)
@@ -402,6 +401,6 @@ task main()
   end
 
   var ts_end = c.legion_get_current_time_in_micros()
-  c.printf("Total time: %d ms\n", (ts_end - ts_start) / 1000)
+  c.printf("%d\n", (ts_end - ts_start) / 1000)
 end
 regentlib.start(main)
