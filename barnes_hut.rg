@@ -225,7 +225,7 @@ do
           total += quads[to_merge[2*i+1][2*j+1]].total
         end
 
-        if quads[allocation_index].total > 0 then
+        if total > 0 then
           quads[allocation_index].mass = mass
           quads[allocation_index].mass_x = mass_x / mass
           quads[allocation_index].mass_y = mass_y / mass
@@ -252,9 +252,9 @@ task main()
 
   load_bodies(all_bodies, conf, num_bodies)
 
---  if conf.csv_dir_set then
---    print_bodies_csv_initial(all_bodies, conf)
---  end
+  -- if conf.csv_dir_set then
+    -- print_bodies_csv_initial(all_bodies, conf)
+  -- end
 
   var boundaries = region(ispace(ptr, 1), boundary)
   
@@ -278,7 +278,7 @@ task main()
 
   var quads = region(ispace(int1d, num_quads), quad)
 
-  for t=0,conf.time_steps do      
+  for t=0,conf.time_steps do
     var elimination_partition = partition(all_bodies.eliminated, ispace(int1d, 2))
     var bodies = elimination_partition[0]
 
@@ -318,7 +318,7 @@ task main()
     fill(quads.{nw, sw, ne, se, next_in_leaf}, -1)
     fill(quads.{mass_x, mass_y, mass, total, type}, 0)
 
-    var quad_range_by_sector = partition(equal, quad_ranges, quad_range_space) 
+    var quad_range_by_sector = partition(equal, quad_ranges, quad_range_space)
     var quads_by_sector = image(quads, quad_range_by_sector, quad_ranges)
 
     var quads_by_sector_colors = quads_by_sector.colors
