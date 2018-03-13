@@ -247,7 +247,7 @@ task main()
   var conf = parse_input_args()
   
   var num_bodies = get_number_of_bodies(conf)
-  c.printf("Loading %d bodies\n", num_bodies)
+  -- c.printf("Loading %d bodies\n", num_bodies)
   var all_bodies = region(ispace(ptr, num_bodies), body)
 
   load_bodies(all_bodies, conf, num_bodies)

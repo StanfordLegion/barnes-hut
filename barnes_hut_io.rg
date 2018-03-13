@@ -68,22 +68,22 @@ terra parse_input_args()
     end
   end
 
-  if not conf.input_file_set then
-    c.printf("input file must be set")
-    c.exit(-1)
-  end
+  -- if not conf.input_file_set then
+    -- c.printf("input file must be set")
+    -- c.exit(-1)
+  -- end
 
-  c.printf("settings: time_steps=%d parallelism=%d N=%d leaf_size=%d max_depth=%d input_file=%s", conf.time_steps, conf.parallelism, conf.N, conf.leaf_size, conf.max_depth, conf.input_file)
+  -- c.printf("settings: time_steps=%d parallelism=%d N=%d leaf_size=%d max_depth=%d input_file=%s", conf.time_steps, conf.parallelism, conf.N, conf.leaf_size, conf.max_depth, conf.input_file)
 
-  if conf.csv_dir_set then
-    c.printf(" csv_dir=%s", conf.csv_dir)
-  end
+  -- if conf.csv_dir_set then
+    -- c.printf(" csv_dir=%s", conf.csv_dir)
+  -- end
 
-  if conf.svg_dir_set then
-    c.printf(" svg_dir=%s", conf.svg_dir)
-  end
+  -- if conf.svg_dir_set then
+    -- c.printf(" svg_dir=%s", conf.svg_dir)
+  -- end
 
-  c.printf("\n\n")
+  -- c.printf("\n\n")
 
   return conf
 end
