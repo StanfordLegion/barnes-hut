@@ -103,8 +103,11 @@ terra get_number_of_bodies(conf : Config)
 end
 
 task load_bodies(bodies : region(body), conf : Config, num_bodies : int)
-  where writes(bodies.{index, mass_x, mass_y, speed_x, speed_y, mass})
+  where
+    reads(bodies.eliminated),
+    writes(bodies.{index, mass_x, mass_y, speed_x, speed_y, mass, eliminated})
 do
+  fill(bodies.eliminated, 0)
   var index = 0
   var mass_x = 0.0
   var mass_y = 0.0
