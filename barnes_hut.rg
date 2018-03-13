@@ -288,6 +288,95 @@ do
     quad_ranges[sector_precision * sector_precision] = rect1d({offset, num_quads - 1})
 end
 
+task run_iteration(all_bodies : region(body), quads : region(ispace(int1d), quad), quad_ranges : region(ispace(int1d), rect1d), boundaries : region(boundary), num_quads : uint, sector_precision : uint, merge_quads : uint, conf : Config)
+where
+  reads writes(all_bodies),
+  reads writes(quads),
+  reads writes(quad_ranges),
+  reads writes(boundaries)
+do
+  var quad_range_space = ispace(int1d, sector_precision * sector_precision + 1)
+  var sector_index = ispace(int1d, sector_precision * sector_precision)
+  var elimination_partition = partition(all_bodies.eliminated, ispace(int1d, 2))
+  var bodies = elimination_partition[0]
+
+  init_boundaries(bodies, boundaries)      
+  var body_partition_index = ispace(ptr, conf.parallelism * 2)
+
+  var bodies_partition = partition(equal, bodies, body_partition_index)
+  for i in body_partition_index do
+    update_boundaries(bodies_partition[i], boundaries)
+  end
+
+  __demand(__parallel)
+  for i in body_partition_index do
+    assign_sectors(bodies_partition[i], boundaries, sector_precision)
+  end
+      
+  var bodies_by_sector = partition(bodies.sector, sector_index)
+
+  calculate_quad_ranges(bodies, bodies_by_sector, quad_ranges, num_quads, sector_precision)
+
+  fill(quads.{nw, sw, ne, se, next_in_leaf}, -1)
+  fill(quads.{mass_x, mass_y, mass, total, type}, 0)
+
+  var quad_range_by_sector = partition(equal, quad_ranges, quad_range_space)
+  var quads_by_sector = image(quads, quad_range_by_sector, quad_ranges)
+
+  var quads_by_sector_colors = quads_by_sector.colors
+  var quads_by_sector_disjoint = dynamic_cast(partition(disjoint, quads, quads_by_sector_colors), quads_by_sector)
+
+  __demand(__parallel)
+  for i in sector_index do
+    var current = bodies_by_sector[i]
+    build_quad(bodies_by_sector[i], quads_by_sector_disjoint[i], quad_ranges, boundaries, sector_precision, conf.leaf_size, conf.max_depth, i)
+  end
+
+  merge_tree(quads, quad_ranges, boundaries, sector_precision)
+
+  var root_index = num_quads - merge_quads
+  __demand(__parallel)
+  for i in body_partition_index do
+    update_body_positions(bodies_partition[i], quads, root_index)
+  end
+
+  __demand(__parallel)
+  for x=0,sector_precision do
+    eliminate_outliers(bodies_by_sector[x], quads, root_index, sector_precision)
+  end
+
+  var start_index = sector_precision * (sector_precision - 1)
+  var end_index = sector_precision * sector_precision - 1
+
+  __demand(__parallel)
+  for x=start_index,end_index do
+    eliminate_outliers(bodies_by_sector[x], quads, root_index, sector_precision)
+  end
+
+  start_index = sector_precision
+  end_index = sector_precision * (sector_precision - 1)
+
+  -- __demand(__parallel)
+  for y=start_index,end_index,sector_precision do
+    eliminate_outliers(bodies_by_sector[y], quads, root_index, sector_precision)
+  end
+
+  start_index = sector_precision + sector_precision - 1
+  end_index = sector_precision * (sector_precision - 1) + sector_precision - 1
+
+  -- __demand(__parallel)
+  for y=start_index,end_index,sector_precision do
+    eliminate_outliers(bodies_by_sector[y], quads, root_index, sector_precision)
+  end
+
+  __delete(elimination_partition)
+  __delete(bodies_partition)
+  __delete(bodies_by_sector)
+  __delete(quad_range_by_sector)
+  __delete(quads_by_sector)
+  __delete(quads_by_sector_disjoint)
+end
+
 task main()
   var ts_start = c.legion_get_current_time_in_micros()
   var conf = parse_input_args()
@@ -314,7 +403,6 @@ task main()
 
   var quad_range_space = ispace(int1d, sector_precision * sector_precision + 1)
   var quad_ranges = region(quad_range_space, rect1d)
-  var sector_index = ispace(int1d, sector_precision * sector_precision)
 
   var merge_quads = 0
   for i=0,conf.N do
@@ -325,85 +413,7 @@ task main()
   var quads = region(ispace(int1d, num_quads), quad)
 
   for t=0,conf.time_steps do
-    var elimination_partition = partition(all_bodies.eliminated, ispace(int1d, 2))
-    var bodies = elimination_partition[0]
-
-    init_boundaries(bodies, boundaries)      
-    var body_partition_index = ispace(ptr, conf.parallelism * 2)
-
-    var bodies_partition = partition(equal, bodies, body_partition_index)
-    for i in body_partition_index do
-      update_boundaries(bodies_partition[i], boundaries)
-    end
-
-    __demand(__parallel)
-    for i in body_partition_index do
-      assign_sectors(bodies_partition[i], boundaries, sector_precision)
-    end
-      
-    var bodies_by_sector = partition(bodies.sector, sector_index)
-
-    calculate_quad_ranges(bodies, bodies_by_sector, quad_ranges, num_quads, sector_precision)
-
-    fill(quads.{nw, sw, ne, se, next_in_leaf}, -1)
-    fill(quads.{mass_x, mass_y, mass, total, type}, 0)
-
-    var quad_range_by_sector = partition(equal, quad_ranges, quad_range_space)
-    var quads_by_sector = image(quads, quad_range_by_sector, quad_ranges)
-
-    var quads_by_sector_colors = quads_by_sector.colors
-    var quads_by_sector_disjoint = dynamic_cast(partition(disjoint, quads, quads_by_sector_colors), quads_by_sector)
-
-    __demand(__parallel)
-    for i in sector_index do
-      var current = bodies_by_sector[i]
-      build_quad(bodies_by_sector[i], quads_by_sector_disjoint[i], quad_ranges, boundaries, sector_precision, conf.leaf_size, conf.max_depth, i)
-    end
-
-    merge_tree(quads, quad_ranges, boundaries, sector_precision)
-
-    var root_index = num_quads - merge_quads
-    __demand(__parallel)
-    for i in body_partition_index do
-      update_body_positions(bodies_partition[i], quads, root_index)
-    end
-
-    __demand(__parallel)
-    for x=0,sector_precision do
-      eliminate_outliers(bodies_by_sector[x], quads, root_index, sector_precision)
-    end
-
-    var start_index = sector_precision * (sector_precision - 1)
-    var end_index = sector_precision * sector_precision - 1
-
-    __demand(__parallel)
-    for x=start_index,end_index do
-      eliminate_outliers(bodies_by_sector[x], quads, root_index, sector_precision)
-    end
-
-    start_index = sector_precision
-    end_index = sector_precision * (sector_precision - 1)
-
-    -- __demand(__parallel)
-    for y=start_index,end_index,sector_precision do
-      eliminate_outliers(bodies_by_sector[y], quads, root_index, sector_precision)
-    end
-
-    start_index = sector_precision + sector_precision - 1
-    end_index = sector_precision * (sector_precision - 1) + sector_precision - 1
-
-    -- __demand(__parallel)
-    for y=start_index,end_index,sector_precision do
-      eliminate_outliers(bodies_by_sector[y], quads, root_index, sector_precision)
-    end
-
-    __delete(elimination_partition)
-    __delete(bodies_partition)
-    __delete(bodies_by_sector)
-    __delete(quad_range_by_sector)
-    __delete(quads_by_sector)
-    __delete(quads_by_sector_disjoint)
-
+    run_iteration(all_bodies, quads, quad_ranges, boundaries, num_quads, sector_precision, merge_quads, conf)
     -- if conf.csv_dir_set then
       -- print_bodies_csv_update(bodies, conf, t+1)
     -- end
@@ -413,6 +423,7 @@ task main()
     -- end
   end
 
+  __fence(__execution, __block)
   var ts_end = c.legion_get_current_time_in_micros()
   c.printf("%d\n", (ts_end - ts_start) / 1000)
 end
