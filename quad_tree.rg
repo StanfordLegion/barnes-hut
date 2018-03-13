@@ -24,7 +24,7 @@ do
   var index = sector_quad_range.lo
   var root_index = index
 
-  assert(quads[root_index].type == 0, "root already allocated")
+  -- assert(quads[root_index].type == 0, "root already allocated")
   quads[root_index].center_x = min_x + (sector_x + 0.5) * size / sector_precision
   quads[root_index].center_y = min_y + (sector_y + 0.5) * size / sector_precision
   quads[root_index].size = size / sector_precision
@@ -38,14 +38,14 @@ do
   for body in bodies do
     -- regentlib.c.printf("body root %d %d %d %d\n", body.index, root_index, sector_x, sector_y)
     index = index + 1
-    assert(quads[index].type == 0, "body already allocated")
+    -- assert(quads[index].type == 0, "body already allocated")
     quads[index].mass_x = body.mass_x
     quads[index].mass_y = body.mass_y
     quads[index].mass = body.mass
     quads[index].leaf_count = 1
     quads[index].total = 1
     quads[index].type = 1
-    quads[index].index = body.index
+    quads[index].index = body
 
     traverse_index = 0
     parent_list[traverse_index] = root_index
@@ -53,11 +53,11 @@ do
     
     while traverse_index >= 0 do
       -- regentlib.c.printf("parent %d child %d traverse_index %d\n", parent_list[traverse_index], child_list[traverse_index], traverse_index)
-      assert(traverse_index < 1024 - leaf_size - 1, "possible overflow")
+      -- assert(traverse_index < 1024 - leaf_size - 1, "possible overflow")
       var parent_index = parent_list[traverse_index]
       var child_index = child_list[traverse_index]
-      assert(parent_index ~= child_index, "parent shouldn't equal child")
-      assert([int](parent_index) >= 0, "parent shouldn't be negative")
+      -- assert(parent_index ~= child_index, "parent shouldn't equal child")
+      -- assert([int](parent_index) >= 0, "parent shouldn't be negative")
       traverse_index = traverse_index - 1
 
       var half_size = quads[parent_index].size / 2
@@ -75,7 +75,7 @@ do
             else
               index += 1
               -- regentlib.c.printf("inserting fork at index %d\n", index)
-              assert(quads[index].type == 0, "region already allocated")
+              -- assert(quads[index].type == 0, "region already allocated")
               quads[index].type = 2
               quads[index].center_x = quads[parent_index].center_x - half_size / 2
               quads[index].center_y = quads[parent_index].center_y - half_size / 2
@@ -113,7 +113,7 @@ do
               quads[parent_index].nw = child_index
             else
               index += 1
-              assert(quads[index].type == 0, "region already allocated")
+              -- assert(quads[index].type == 0, "region already allocated")
               quads[index].type = 2
               quads[index].center_x = quads[parent_index].center_x - half_size / 2
               quads[index].center_y = quads[parent_index].center_y + half_size / 2
@@ -153,7 +153,7 @@ do
               quads[parent_index].se = child_index
             else
               index += 1
-              assert(quads[index].type == 0, "region already allocated")
+              -- assert(quads[index].type == 0, "region already allocated")
               quads[index].type = 2
               quads[index].center_x = quads[parent_index].center_x + half_size / 2
               quads[index].center_y = quads[parent_index].center_y - half_size / 2
@@ -191,7 +191,7 @@ do
               quads[parent_index].ne = child_index
             else
               index += 1
-              assert(quads[index].type == 0, "region already allocated")
+              -- assert(quads[index].type == 0, "region already allocated")
               quads[index].type = 2
               quads[index].center_x = quads[parent_index].center_x + half_size / 2
               quads[index].center_y = quads[parent_index].center_y + half_size / 2
@@ -222,7 +222,7 @@ do
       end
 
       var old_mass = quads[parent_index].mass
-      var new_mass = quads[parent_index].mass + quads[child_index].mass
+      var new_mass = old_mass + quads[child_index].mass
       quads[parent_index].mass_x = (quads[parent_index].mass_x * old_mass + quads[child_index].mass_x * quads[child_index].mass) / new_mass
       quads[parent_index].mass_y = (quads[parent_index].mass_y * old_mass + quads[child_index].mass_y * quads[child_index].mass) / new_mass
       quads[parent_index].mass = new_mass

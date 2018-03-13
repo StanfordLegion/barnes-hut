@@ -37,13 +37,14 @@ task assign_sectors(bodies : region(body), min_x : double, min_y : double, size 
     reads(bodies.{mass_x, mass_y}),
     writes(bodies.sector)
 do
+  var sector_size = size / sector_precision
   for body in bodies do
-    var sector_x : int64 = cmath.floor((body.mass_x - min_x) / (size / sector_precision))
+    var sector_x : int64 = cmath.floor((body.mass_x - min_x) / sector_size)
     if (sector_x >= sector_precision) then
       sector_x = sector_x - 1
     end
 
-    var sector_y: int64 = cmath.floor((body.mass_y - min_y) / (size / sector_precision))
+    var sector_y: int64 = cmath.floor((body.mass_y - min_y) / sector_size)
     if (sector_y >= sector_precision) then
       sector_y = sector_y - 1
     end
@@ -71,10 +72,12 @@ do
       -- c.printf("traverse index %d quad %d\n", traverse_index + 1, cur_index)
 
       if quads[cur_index].type == 2 then
-        var dist = sqrt((body.mass_x - quads[cur_index].mass_x) * (body.mass_x - quads[cur_index].mass_x) + (body.mass_y - quads[cur_index].mass_y) * (body.mass_y - quads[cur_index].mass_y))
+        var dist_x = quads[cur_index].mass_x - body.mass_x
+        var dist_y = quads[cur_index].mass_y - body.mass_y
+        var dist = sqrt(dist_x * dist_x + dist_y * dist_y)
         if dist > 1.0 then
           if quads[cur_index].size / dist >= theta then
-            assert(traverse_index < 1020, "possible traverse list overflow")
+            -- assert(traverse_index < 1020, "possible traverse list overflow")
             if quads[cur_index].sw ~= -1 then
               traverse_index += 1
               traverse_list[traverse_index] = quads[cur_index].sw
@@ -95,28 +98,23 @@ do
               traverse_list[traverse_index] = quads[cur_index].ne
             end
           else
-            var d_force = gee * body.mass * quads[cur_index].mass / (dist * dist)
-            var xn = (quads[cur_index].mass_x - body.mass_x) / dist
-            var yn = (quads[cur_index].mass_y - body.mass_y) / dist
-            -- c.printf("Heuristic updating body %d: d_force_x %f d_force_y %f\n", body.index, d_force_x, d_force_x)
-
-            force_x += d_force * xn
-            force_y += d_force * yn
+            var d_force = gee * body.mass * quads[cur_index].mass / (dist * dist * dist)
+            force_x += d_force * dist_x
+            force_y += d_force * dist_y
           end
         end
       else
         while cur_index ~= -1 do
           if quads[cur_index].index ~= body.index then
-            var dist = sqrt((body.mass_x - quads[cur_index].mass_x) * (body.mass_x - quads[cur_index].mass_x) + (body.mass_y - quads[cur_index].mass_y) * (body.mass_y - quads[cur_index].mass_y))
+            var dist_x = quads[cur_index].mass_x - body.mass_x
+            var dist_y = quads[cur_index].mass_y - body.mass_y
+            var dist = sqrt(dist_x * dist_x + dist_y * dist_y)
             if dist > 1.0 then
-              var d_force = gee * body.mass * quads[cur_index].mass / (dist * dist)
-              var xn = (quads[cur_index].mass_x - body.mass_x) / dist
-              var yn = (quads[cur_index].mass_y - body.mass_y) / dist
-              force_x += d_force * xn
-              force_y += d_force * yn
-              -- c.printf("Updating body %d: d_force_x %f d_force_y %f d_force %f body_mass %f cur_mass %f dist %f xn %f yn %f\n", body.index, d_force_x, d_force_x, d_force, body.mass, quads[cur_index].mass, dist, xn, yn)
-              end
+              var d_force = gee * body.mass * quads[cur_index].mass / (dist * dist * dist)
+              force_x += d_force * dist_x
+              force_y += d_force * dist_y
             end
+          end
           cur_index = quads[cur_index].next_in_leaf
         end
       end
@@ -186,46 +184,52 @@ do
         quads[allocation_index].center_y = min_y + quad_size * (j + 0.5)
         quads[allocation_index].type = 2
 
-        quads[allocation_index].mass = 0
-        quads[allocation_index].mass_x = 0
-        quads[allocation_index].mass_y = 0
-        quads[allocation_index].total = 0
+        var mass = 0.0f
+        var mass_x = 0.0f
+        var mass_y = 0.0f
+        var total = 0
 
         if to_merge[2*i][2*j] ~= -1 then
           quads[allocation_index].sw = to_merge[2*i][2*j]
-          quads[allocation_index].mass += quads[to_merge[2*i][2*j]].mass
-          quads[allocation_index].mass_x += quads[to_merge[2*i][2*j]].mass_x * quads[to_merge[2*i][2*j]].mass
-          quads[allocation_index].mass_y += quads[to_merge[2*i][2*j]].mass_y * quads[to_merge[2*i][2*j]].mass
-          quads[allocation_index].total += quads[to_merge[2*i][2*j]].total
+          var to_merge_mass = quads[to_merge[2*i][2*j]].mass
+          mass += to_merge_mass
+          mass_x += quads[to_merge[2*i][2*j]].mass_x * to_merge_mass
+          mass_y += quads[to_merge[2*i][2*j]].mass_y * to_merge_mass
+          total += quads[to_merge[2*i][2*j]].total
         end
 
         if to_merge[2*i][2*j+1] ~= -1 then
           quads[allocation_index].nw = to_merge[2*i][2*j+1]
-          quads[allocation_index].mass += quads[to_merge[2*i][2*j+1]].mass
-          quads[allocation_index].mass_x += quads[to_merge[2*i][2*j+1]].mass_x * quads[to_merge[2*i][2*j+1]].mass
-          quads[allocation_index].mass_y += quads[to_merge[2*i][2*j+1]].mass_y * quads[to_merge[2*i][2*j+1]].mass
-          quads[allocation_index].total += quads[to_merge[2*i][2*j+1]].total
+          var to_merge_mass = quads[to_merge[2*i][2*j+1]].mass
+          mass += to_merge_mass
+          mass_x += quads[to_merge[2*i][2*j+1]].mass_x * to_merge_mass
+          mass_y += quads[to_merge[2*i][2*j+1]].mass_y * to_merge_mass
+          total += quads[to_merge[2*i][2*j+1]].total
         end
 
         if to_merge[2*i+1][2*j] ~= -1 then
           quads[allocation_index].se = to_merge[2*i+1][2*j]
-          quads[allocation_index].mass += quads[to_merge[2*i+1][2*j]].mass
-          quads[allocation_index].mass_x += quads[to_merge[2*i+1][2*j]].mass_x * quads[to_merge[2*i+1][2*j]].mass
-          quads[allocation_index].mass_y += quads[to_merge[2*i+1][2*j]].mass_y * quads[to_merge[2*i+1][2*j]].mass
-          quads[allocation_index].total += quads[to_merge[2*i+1][2*j]].total
+          var to_merge_mass = quads[to_merge[2*i+1][2*j]].mass
+          mass += to_merge_mass
+          mass_x += quads[to_merge[2*i+1][2*j]].mass_x * to_merge_mass
+          mass_y += quads[to_merge[2*i+1][2*j]].mass_y * to_merge_mass
+          total += quads[to_merge[2*i+1][2*j]].total
         end
 
         if to_merge[2*i+1][2*j+1] ~= -1 then
           quads[allocation_index].ne = to_merge[2*i+1][2*j+1]
-          quads[allocation_index].mass += quads[to_merge[2*i+1][2*j+1]].mass
-          quads[allocation_index].mass_x += quads[to_merge[2*i+1][2*j+1]].mass_x * quads[to_merge[2*i+1][2*j+1]].mass
-          quads[allocation_index].mass_y += quads[to_merge[2*i+1][2*j+1]].mass_y * quads[to_merge[2*i+1][2*j+1]].mass
-          quads[allocation_index].total += quads[to_merge[2*i+1][2*j+1]].total
+          var to_merge_mass = quads[to_merge[2*i+1][2*j+1]].mass
+          mass += to_merge_mass
+          mass_x += quads[to_merge[2*i+1][2*j+1]].mass_x * to_merge_mass
+          mass_y += quads[to_merge[2*i+1][2*j+1]].mass_y * to_merge_mass
+          total += quads[to_merge[2*i+1][2*j+1]].total
         end
 
         if quads[allocation_index].total > 0 then
-          quads[allocation_index].mass_x = quads[allocation_index].mass_x / quads[allocation_index].mass
-          quads[allocation_index].mass_y = quads[allocation_index].mass_y / quads[allocation_index].mass
+          quads[allocation_index].mass = mass
+          quads[allocation_index].mass_x = mass_x / mass
+          quads[allocation_index].mass_y = mass_y / mass
+          quads[allocation_index].total = total
           to_merge[i][j] = allocation_index
         else
           to_merge[i][j] = -1
@@ -248,17 +252,17 @@ task main()
 
   load_bodies(all_bodies, conf, num_bodies)
 
-  if conf.csv_dir_set then
-    print_bodies_csv_initial(all_bodies, conf)
-  end
+--  if conf.csv_dir_set then
+--    print_bodies_csv_initial(all_bodies, conf)
+--  end
 
   var boundaries = region(ispace(ptr, 1), boundary)
   
-  if conf.svg_dir_set then
-    boundaries[0] = { min_x = all_bodies[0].mass_x, min_y = all_bodies[0].mass_y, max_x = all_bodies[0].mass_x, max_y = all_bodies[0].mass_y }
-    update_boundaries(all_bodies, boundaries)
-    print_bodies_svg(all_bodies, boundaries, conf, 0)
-  end
+--  if conf.svg_dir_set then
+--    boundaries[0] = { min_x = all_bodies[0].mass_x, min_y = all_bodies[0].mass_y, max_x = all_bodies[0].mass_x, max_y = all_bodies[0].mass_y }
+--    update_boundaries(all_bodies, boundaries)
+--    print_bodies_svg(all_bodies, boundaries, conf, 0)
+--  end
 
   var sector_precision : uint = pow(2, conf.N)
 
@@ -274,141 +278,137 @@ task main()
 
   var quads = region(ispace(int1d, num_quads), quad)
 
-  for t=0,conf.time_steps do
-      var iter_start = c.legion_get_current_time_in_micros()
+  for t=0,conf.time_steps do      
+    var elimination_partition = partition(all_bodies.eliminated, ispace(int1d, 2))
+    var bodies = elimination_partition[0]
+
+    boundaries[0] = { min_x = bodies[0].mass_x, min_y = bodies[0].mass_y, max_x = bodies[0].mass_x, max_y = bodies[0].mass_y }
       
-      var elimination_partition = partition(all_bodies.eliminated, ispace(int1d, 2))
-      var bodies = elimination_partition[0]
+    var body_partition_index = ispace(ptr, conf.parallelism * 2)
 
-      boundaries[0] = { min_x = bodies[0].mass_x, min_y = bodies[0].mass_y, max_x = bodies[0].mass_x, max_y = bodies[0].mass_y }
+    var bodies_partition = partition(equal, bodies, body_partition_index)
+    for i in body_partition_index do
+      update_boundaries(bodies_partition[i], boundaries)
+    end
+
+    var min_x = boundaries[0].min_x
+    var min_y = boundaries[0].min_y
+    var size_x = boundaries[0].max_x - min_x
+    var size_y = boundaries[0].max_y - min_y
+    var size = max(size_x, size_y)
+    var min_size = max(size / conf.max_depth, 0.0001)
+
+    __demand(__parallel)
+    for i in body_partition_index do
+      assign_sectors(bodies_partition[i], min_x, min_y, size, sector_precision)
+    end
       
-      var body_partition_index = ispace(ptr, conf.parallelism * 2)
+    var bodies_by_sector = partition(bodies.sector, sector_index)
 
-      var bodies_partition = partition(equal, bodies, body_partition_index)
-      for i in body_partition_index do
-        update_boundaries(bodies_partition[i], boundaries)
+    var offset = 0
+    for i=0,sector_precision*sector_precision do
+      var current = bodies_by_sector[i]
+      var quad_size_estimate = current.ispace.volume * 12 / 5
+      quad_ranges[i] = rect1d({offset, offset + quad_size_estimate})
+      offset += quad_size_estimate + 1
+    end
+
+    quad_ranges[sector_precision * sector_precision] = rect1d({offset, num_quads - 1})
+
+    fill(quads.{nw, sw, ne, se, next_in_leaf}, -1)
+    fill(quads.{mass_x, mass_y, mass, total, type}, 0)
+
+    var quad_range_by_sector = partition(equal, quad_ranges, quad_range_space) 
+    var quads_by_sector = image(quads, quad_range_by_sector, quad_ranges)
+
+    var quads_by_sector_colors = quads_by_sector.colors
+    var quads_by_sector_disjoint = dynamic_cast(partition(disjoint, quads, quads_by_sector_colors), quads_by_sector)
+
+    -- __demand(__parallel)
+    for i in sector_index do
+      var current = bodies_by_sector[i]
+      if current.ispace.volume > 0 then
+        build_quad(bodies_by_sector[i], quads_by_sector_disjoint[i], quad_ranges, min_x, min_y, size, sector_precision, conf.leaf_size, min_size, i)
       end
+    end
 
-      var min_x = boundaries[0].min_x
-      var min_y = boundaries[0].min_y
-      var size_x = boundaries[0].max_x - min_x
-      var size_y = boundaries[0].max_y - min_y
-      var size = max(size_x, size_y)
-      var min_size = max(size / conf.max_depth, 0.0001)
+    merge_tree(quads, quad_ranges, sector_precision, min_x, min_y, size)
 
-      __demand(__parallel)
-      for i in body_partition_index do
-        assign_sectors(bodies_partition[i], min_x, min_y, size, sector_precision)
+    -- for i in quads_index do
+      -- if quads[i].total ~= 0 then
+        -- c.printf("%d Quad index: %d, type %d mass_x %f, mass_y %f, mass %f, center_x %f, center_y %f, size %f, total %d, sw %d, nw %d, se %d, ne %d\n", i, quads[i].index, quads[i].type, quads[i].mass_x, quads[i].mass_y, quads[i].mass, quads[i].center_x, quads[i].center_y, quads[i].size, quads[i].total, quads[i].sw, quads[i].nw, quads[i].se, quads[i].ne)
+      -- end
+    -- end
+
+    -- var i = allocation_index + 1
+    -- c.printf("\n%d Root index: %d, type %d mass_x %f, mass_y %f, mass %f, center_x %f, center_y %f, size %f, total %d, sw %d, nw %d, se %d, ne %d\n", i, quads[i].index, quads[i].type, quads[i].mass_x, quads[i].mass_y, quads[i].mass, quads[i].center_x, quads[i].center_y, quads[i].size, quads[i].total, quads[i].sw, quads[i].nw, quads[i].se, quads[i].ne)
+
+    var root_index = num_quads - merge_quads
+    __demand(__parallel)
+    for i in body_partition_index do
+      update_body_positions(bodies_partition[i], quads, root_index)
+    end
+
+    var root = quads[root_index]
+    var root_mass_x = root.mass_x
+    var root_mass_y = root.mass_y
+    var root_mass = root.mass
+
+    -- __demand(__parallel)
+    for x=0,sector_precision do
+      var current = bodies_by_sector[x]
+      if current.ispace.volume < elimination_quantity then
+        eliminate_outliers(bodies_by_sector[x], root_mass_x, root_mass_y, root_mass, size)
       end
-      
-      var bodies_by_sector = partition(bodies.sector, sector_index)
+    end
 
-      var offset = 0
-      for i=0,sector_precision*sector_precision do
-        var current = bodies_by_sector[i]
-        var quad_size_estimate = current.ispace.volume * 12 / 5
-        quad_ranges[i] = rect1d({offset, offset + quad_size_estimate})
-        offset += quad_size_estimate + 1
+    var start_index = sector_precision * (sector_precision - 1)
+    var end_index = sector_precision * sector_precision - 1
+
+    -- __demand(__parallel)
+    for x=start_index,end_index do
+      var current = bodies_by_sector[x]
+      if current.ispace.volume < elimination_quantity then
+        eliminate_outliers(bodies_by_sector[x], root_mass_x, root_mass_y, root_mass, size)
       end
+    end
 
-      quad_ranges[sector_precision * sector_precision] = rect1d({offset, num_quads - 1})
+    start_index = sector_precision
+    end_index = sector_precision * (sector_precision - 1)
 
-      fill(quads.{nw, sw, ne, se, next_in_leaf}, -1)
-      fill(quads.{mass_x, mass_y, mass, total, type}, 0)
-
-      var quad_range_by_sector = partition(equal, quad_ranges, quad_range_space) 
-      var quads_by_sector = image(quads, quad_range_by_sector, quad_ranges)
-
-      var quads_by_sector_colors = quads_by_sector.colors
-      var quads_by_sector_disjoint = dynamic_cast(partition(disjoint, quads, quads_by_sector_colors), quads_by_sector)
-
-      -- __demand(__parallel)
-      for i in sector_index do
-        var current = bodies_by_sector[i]
-        if current.ispace.volume > 0 then
-          build_quad(bodies_by_sector[i], quads_by_sector_disjoint[i], quad_ranges, min_x, min_y, size, sector_precision, conf.leaf_size, min_size, i)
-        end
+    -- __demand(__parallel)
+    for y=start_index,end_index,sector_precision do
+      var current = bodies_by_sector[y]
+      if current.ispace.volume < elimination_quantity then
+        eliminate_outliers(bodies_by_sector[y], root_mass_x, root_mass_y, root_mass, size)
       end
+    end
 
-      merge_tree(quads, quad_ranges, sector_precision, min_x, min_y, size)
+    start_index = sector_precision + sector_precision - 1
+    end_index = sector_precision * (sector_precision - 1) + sector_precision - 1
 
-       -- for i in quads_index do
-        -- if quads[i].total ~= 0 then
-          -- c.printf("%d Quad index: %d, type %d mass_x %f, mass_y %f, mass %f, center_x %f, center_y %f, size %f, total %d, sw %d, nw %d, se %d, ne %d\n", i, quads[i].index, quads[i].type, quads[i].mass_x, quads[i].mass_y, quads[i].mass, quads[i].center_x, quads[i].center_y, quads[i].size, quads[i].total, quads[i].sw, quads[i].nw, quads[i].se, quads[i].ne)
-        -- end
-       -- end
-
-      -- var i = allocation_index + 1
-      -- c.printf("\n%d Root index: %d, type %d mass_x %f, mass_y %f, mass %f, center_x %f, center_y %f, size %f, total %d, sw %d, nw %d, se %d, ne %d\n", i, quads[i].index, quads[i].type, quads[i].mass_x, quads[i].mass_y, quads[i].mass, quads[i].center_x, quads[i].center_y, quads[i].size, quads[i].total, quads[i].sw, quads[i].nw, quads[i].se, quads[i].ne)
-
-      var root_index = num_quads - merge_quads
-      __demand(__parallel)
-      for i in body_partition_index do
-        update_body_positions(bodies_partition[i], quads, root_index)
+    -- __demand(__parallel)
+    for y=start_index,end_index,sector_precision do
+      var current = bodies_by_sector[y]
+      if current.ispace.volume < elimination_quantity then
+        eliminate_outliers(bodies_by_sector[y], root_mass_x, root_mass_y, root_mass, size)
       end
+    end
 
-      var root = quads[root_index]
-      var root_mass_x = root.mass_x
-      var root_mass_y = root.mass_y
-      var root_mass = root.mass
+    __delete(elimination_partition)
+    __delete(bodies_partition)
+    __delete(bodies_by_sector)
+    __delete(quad_range_by_sector)
+    __delete(quads_by_sector)
+    __delete(quads_by_sector_disjoint)
 
-      -- __demand(__parallel)
-      for x=0,sector_precision do
-        var current = bodies_by_sector[x]
-        if current.ispace.volume < elimination_quantity then
-          eliminate_outliers(bodies_by_sector[x], root_mass_x, root_mass_y, root_mass, size)
-        end
-      end
+    -- if conf.csv_dir_set then
+      -- print_bodies_csv_update(bodies, conf, t+1)
+    -- end
 
-      var start_index = sector_precision * (sector_precision - 1)
-      var end_index = sector_precision * sector_precision - 1
-
-      -- __demand(__parallel)
-      for x=start_index,end_index do
-        var current = bodies_by_sector[x]
-        if current.ispace.volume < elimination_quantity then
-          eliminate_outliers(bodies_by_sector[x], root_mass_x, root_mass_y, root_mass, size)
-        end
-      end
-
-      start_index = sector_precision
-      end_index = sector_precision * (sector_precision - 1)
-
-      -- __demand(__parallel)
-      for y=start_index,end_index,sector_precision do
-        var current = bodies_by_sector[y]
-        if current.ispace.volume < elimination_quantity then
-          eliminate_outliers(bodies_by_sector[y], root_mass_x, root_mass_y, root_mass, size)
-        end
-      end
-
-      start_index = sector_precision + sector_precision - 1
-      end_index = sector_precision * (sector_precision - 1) + sector_precision - 1
-
-      -- __demand(__parallel)
-      for y=start_index,end_index,sector_precision do
-        var current = bodies_by_sector[y]
-        if current.ispace.volume < elimination_quantity then
-          eliminate_outliers(bodies_by_sector[y], root_mass_x, root_mass_y, root_mass, size)
-        end
-      end
-
-      __delete(elimination_partition)
-      __delete(bodies_partition)
-      __delete(bodies_by_sector)
-      __delete(quad_range_by_sector)
-      __delete(quads_by_sector)
-      __delete(quads_by_sector_disjoint)
-
-      var iter_end = c.legion_get_current_time_in_micros()
-
-      if conf.csv_dir_set then
-        print_bodies_csv_update(bodies, conf, t+1)
-      end
-
-      if conf.svg_dir_set then
-        print_bodies_svg(bodies, boundaries, conf, t+1)
-      end
+    -- if conf.svg_dir_set then
+      -- print_bodies_svg(bodies, boundaries, conf, t+1)
+    -- end
   end
 
   var ts_end = c.legion_get_current_time_in_micros()
