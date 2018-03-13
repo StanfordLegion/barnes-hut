@@ -154,6 +154,90 @@ do
   end
 end
 
+task merge_tree(quads : region(ispace(int1d), quad), quad_ranges : region(ispace(int1d), rect1d), sector_precision : uint, min_x : double, min_y : double, sector_size : double)
+where
+  reads(quads),
+  reads(quad_ranges),
+  writes(quads)
+do
+  var to_merge : int[64][64]
+  for i=0,sector_precision do
+    for j=0,sector_precision do
+      var quad_range = quad_ranges[i + j*sector_precision]
+      var root_index = quad_range.lo
+      if quads[root_index].total > 0 then
+        to_merge[i][j] = root_index
+      else
+        to_merge[i][j] = -1
+      end
+    end
+  end
+
+  var quad_range = quad_ranges[sector_precision * sector_precision]
+  var allocation_index = quad_range.hi
+  var level = sector_precision
+  while level > 1 do
+    var next_level = level / 2
+    for i=0,next_level do
+      for j=0,next_level do
+        var quad_size = sector_size / next_level
+        quads[allocation_index].size = quad_size
+        quads[allocation_index].center_x = min_x + quad_size * (i + 0.5)
+        quads[allocation_index].center_y = min_y + quad_size * (j + 0.5)
+        quads[allocation_index].type = 2
+
+        quads[allocation_index].mass = 0
+        quads[allocation_index].mass_x = 0
+        quads[allocation_index].mass_y = 0
+        quads[allocation_index].total = 0
+
+        if to_merge[2*i][2*j] ~= -1 then
+          quads[allocation_index].sw = to_merge[2*i][2*j]
+          quads[allocation_index].mass += quads[to_merge[2*i][2*j]].mass
+          quads[allocation_index].mass_x += quads[to_merge[2*i][2*j]].mass_x * quads[to_merge[2*i][2*j]].mass
+          quads[allocation_index].mass_y += quads[to_merge[2*i][2*j]].mass_y * quads[to_merge[2*i][2*j]].mass
+          quads[allocation_index].total += quads[to_merge[2*i][2*j]].total
+        end
+
+        if to_merge[2*i][2*j+1] ~= -1 then
+          quads[allocation_index].nw = to_merge[2*i][2*j+1]
+          quads[allocation_index].mass += quads[to_merge[2*i][2*j+1]].mass
+          quads[allocation_index].mass_x += quads[to_merge[2*i][2*j+1]].mass_x * quads[to_merge[2*i][2*j+1]].mass
+          quads[allocation_index].mass_y += quads[to_merge[2*i][2*j+1]].mass_y * quads[to_merge[2*i][2*j+1]].mass
+          quads[allocation_index].total += quads[to_merge[2*i][2*j+1]].total
+        end
+
+        if to_merge[2*i+1][2*j] ~= -1 then
+          quads[allocation_index].se = to_merge[2*i+1][2*j]
+          quads[allocation_index].mass += quads[to_merge[2*i+1][2*j]].mass
+          quads[allocation_index].mass_x += quads[to_merge[2*i+1][2*j]].mass_x * quads[to_merge[2*i+1][2*j]].mass
+          quads[allocation_index].mass_y += quads[to_merge[2*i+1][2*j]].mass_y * quads[to_merge[2*i+1][2*j]].mass
+          quads[allocation_index].total += quads[to_merge[2*i+1][2*j]].total
+        end
+
+        if to_merge[2*i+1][2*j+1] ~= -1 then
+          quads[allocation_index].ne = to_merge[2*i+1][2*j+1]
+          quads[allocation_index].mass += quads[to_merge[2*i+1][2*j+1]].mass
+          quads[allocation_index].mass_x += quads[to_merge[2*i+1][2*j+1]].mass_x * quads[to_merge[2*i+1][2*j+1]].mass
+          quads[allocation_index].mass_y += quads[to_merge[2*i+1][2*j+1]].mass_y * quads[to_merge[2*i+1][2*j+1]].mass
+          quads[allocation_index].total += quads[to_merge[2*i+1][2*j+1]].total
+        end
+
+        if quads[allocation_index].total > 0 then
+          quads[allocation_index].mass_x = quads[allocation_index].mass_x / quads[allocation_index].mass
+          quads[allocation_index].mass_y = quads[allocation_index].mass_y / quads[allocation_index].mass
+          to_merge[i][j] = allocation_index
+        else
+          to_merge[i][j] = -1
+        end
+
+        allocation_index = allocation_index - 1
+      end
+    end
+    level = next_level
+  end  
+end
+
 task main()
   var ts_start = c.legion_get_current_time_in_micros()
   var conf = parse_input_args()
@@ -182,11 +266,11 @@ task main()
   var quad_ranges = region(quad_range_space, rect1d)
   var sector_index = ispace(int1d, sector_precision * sector_precision)
 
-  var num_quads = num_bodies * 12 / 5
+  var merge_quads = 0
   for i=0,conf.N do
-    num_quads += pow(4, i)
+    merge_quads += pow(4, i)
   end
-  num_quads += sector_precision*sector_precision
+  var num_quads = num_bodies * 12 / 5 + merge_quads + sector_precision*sector_precision
 
   var quads = region(ispace(int1d, num_quads), quad)
 
@@ -246,80 +330,7 @@ task main()
         end
       end
 
-      var to_merge : int[64][64]
-      for i=0,sector_precision do
-        for j=0,sector_precision do
-          var quad_range = quad_ranges[i + j*sector_precision]
-          var root_index = quad_range.lo
-          if quads[root_index].total > 0 then
-            to_merge[i][j] = root_index
-          else
-            to_merge[i][j] = -1
-          end
-        end
-      end
-
-      var allocation_index = num_quads - 1
-      var level = sector_precision
-      while level > 1 do
-        var next_level = level / 2
-        for i=0,next_level do
-          for j=0,next_level do
-            quads[allocation_index].size = size / next_level
-            quads[allocation_index].center_x = min_x + size / next_level * (i + 0.5)
-            quads[allocation_index].center_y = min_y + size / next_level * (j + 0.5)
-            quads[allocation_index].type = 2
-
-            quads[allocation_index].mass = 0
-            quads[allocation_index].mass_x = 0
-            quads[allocation_index].mass_y = 0
-            quads[allocation_index].total = 0
-
-            if to_merge[2*i][2*j] ~= -1 then
-              quads[allocation_index].sw = to_merge[2*i][2*j]
-              quads[allocation_index].mass += quads[to_merge[2*i][2*j]].mass
-              quads[allocation_index].mass_x += quads[to_merge[2*i][2*j]].mass_x * quads[to_merge[2*i][2*j]].mass
-              quads[allocation_index].mass_y += quads[to_merge[2*i][2*j]].mass_y * quads[to_merge[2*i][2*j]].mass
-              quads[allocation_index].total += quads[to_merge[2*i][2*j]].total
-            end
-
-            if to_merge[2*i][2*j+1] ~= -1 then
-              quads[allocation_index].nw = to_merge[2*i][2*j+1]
-              quads[allocation_index].mass += quads[to_merge[2*i][2*j+1]].mass
-              quads[allocation_index].mass_x += quads[to_merge[2*i][2*j+1]].mass_x * quads[to_merge[2*i][2*j+1]].mass
-              quads[allocation_index].mass_y += quads[to_merge[2*i][2*j+1]].mass_y * quads[to_merge[2*i][2*j+1]].mass
-              quads[allocation_index].total += quads[to_merge[2*i][2*j+1]].total
-            end
-
-            if to_merge[2*i+1][2*j] ~= -1 then
-              quads[allocation_index].se = to_merge[2*i+1][2*j]
-              quads[allocation_index].mass += quads[to_merge[2*i+1][2*j]].mass
-              quads[allocation_index].mass_x += quads[to_merge[2*i+1][2*j]].mass_x * quads[to_merge[2*i+1][2*j]].mass
-              quads[allocation_index].mass_y += quads[to_merge[2*i+1][2*j]].mass_y * quads[to_merge[2*i+1][2*j]].mass
-              quads[allocation_index].total += quads[to_merge[2*i+1][2*j]].total
-            end
-
-            if to_merge[2*i+1][2*j+1] ~= -1 then
-              quads[allocation_index].ne = to_merge[2*i+1][2*j+1]
-              quads[allocation_index].mass += quads[to_merge[2*i+1][2*j+1]].mass
-              quads[allocation_index].mass_x += quads[to_merge[2*i+1][2*j+1]].mass_x * quads[to_merge[2*i+1][2*j+1]].mass
-              quads[allocation_index].mass_y += quads[to_merge[2*i+1][2*j+1]].mass_y * quads[to_merge[2*i+1][2*j+1]].mass
-              quads[allocation_index].total += quads[to_merge[2*i+1][2*j+1]].total
-            end
-
-            if quads[allocation_index].total > 0 then
-              quads[allocation_index].mass_x = quads[allocation_index].mass_x / quads[allocation_index].mass
-              quads[allocation_index].mass_y = quads[allocation_index].mass_y / quads[allocation_index].mass
-              to_merge[i][j] = allocation_index
-            else
-              to_merge[i][j] = -1
-            end
-
-            allocation_index = allocation_index - 1
-          end
-        end
-        level = next_level
-      end
+      merge_tree(quads, quad_ranges, sector_precision, min_x, min_y, size)
 
        -- for i in quads_index do
         -- if quads[i].total ~= 0 then
@@ -330,7 +341,7 @@ task main()
       -- var i = allocation_index + 1
       -- c.printf("\n%d Root index: %d, type %d mass_x %f, mass_y %f, mass %f, center_x %f, center_y %f, size %f, total %d, sw %d, nw %d, se %d, ne %d\n", i, quads[i].index, quads[i].type, quads[i].mass_x, quads[i].mass_y, quads[i].mass, quads[i].center_x, quads[i].center_y, quads[i].size, quads[i].total, quads[i].sw, quads[i].nw, quads[i].se, quads[i].ne)
 
-      var root_index = allocation_index + 1
+      var root_index = num_quads - merge_quads
       __demand(__parallel)
       for i in body_partition_index do
         update_body_positions(bodies_partition[i], quads, root_index)
