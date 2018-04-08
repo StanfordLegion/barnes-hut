@@ -9,8 +9,6 @@ local sqrt = regentlib.sqrt(float)
 
 local cmath = terralib.includec("math.h")
 
-local QuadTreeSizer = require("quad_tree_sizer")
-
 local gee = 100.0
 local delta = 0.1
 local theta = 0.5
