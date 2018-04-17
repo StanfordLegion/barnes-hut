@@ -425,4 +425,10 @@ task main()
   var ts_end = c.legion_get_current_time_in_micros()
   c.printf("%d\n", (ts_end - ts_start) / 1000)
 end
-regentlib.start(main)
+
+if os.getenv('SAVEOBJ') == '1' then
+  local exe = os.getenv('OBJNAME') or "barnes_hut"
+  regentlib.saveobj(main, exe, "executable")
+else
+  regentlib.start(main)
+end
