@@ -15,6 +15,41 @@ local theta = 0.5
 local elimination_threshold = 8.0
 local elimination_quantity = 4
 
+local cbarnes_hut
+do
+  assert(os.getenv('LG_RT_DIR') ~= nil, "$LG_RT_DIR should be set!")
+  local root_dir = arg[0]:match(".*/") or "./"
+  local runtime_dir = os.getenv("LG_RT_DIR") .. "/"
+  local barnes_hut_cc = root_dir .. "barnes_hut.cc"
+  local barnes_hut_so
+  if os.getenv('SAVEOBJ') == '1' then
+    barnes_hut_so = root_dir .. "libbarnes_hut.so"
+  else
+    barnes_hut_so = os.tmpname() .. ".so" -- root_dir .. "mapper.so"
+  end
+  local cxx = os.getenv('CXX') or 'c++'
+
+  local cxx_flags = os.getenv('CC_FLAGS') or ''
+  cxx_flags = cxx_flags .. " -O2 -Wall -Werror"
+  if os.execute('test "$(uname)" = Darwin') == 0 then
+    cxx_flags =
+      (cxx_flags ..
+         " -dynamiclib -single_module -undefined dynamic_lookup -fPIC")
+  else
+    cxx_flags = cxx_flags .. " -shared -fPIC"
+  end
+
+  local cmd = (cxx .. " " .. cxx_flags .. " -I " .. runtime_dir .. " " ..
+                 barnes_hut_cc .. " -o " .. barnes_hut_so)
+  if os.execute(cmd) ~= 0 then
+    print("Error: failed to compile " .. barnes_hut_cc)
+    assert(false, "")
+  end
+  terralib.linklibrary(barnes_hut_so)
+  cbarnes_hut =
+    terralib.includec("barnes_hut.h", {"-I", root_dir, "-I", runtime_dir})
+end
+
 task init_boundaries(bodies : region(body), boundaries : region(boundary))
   where
   reads(bodies.{mass_x, mass_y}),
@@ -439,7 +474,7 @@ if os.getenv('SAVEOBJ') == '1' then
     os.execute('cp ' .. os.getenv('LG_RT_DIR') .. '/../bindings/regent/libregent.so ' .. out_dir)
   end
   local exe = os.getenv('OBJNAME') or "barnes_hut"
-  regentlib.saveobj(main, exe, "executable", nil, link_flags)
+  regentlib.saveobj(main, exe, "executable", cbarnes_hut.register_mappers, link_flags)
 else
-  regentlib.start(main)
+  regentlib.start(main, cbarnes_hut.register_mappers)
 end
