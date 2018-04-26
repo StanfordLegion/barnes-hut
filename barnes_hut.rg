@@ -130,7 +130,7 @@ do
           var dist = sqrt(dist_x * dist_x + dist_y * dist_y)
           if dist > 1.0 then
             if quads[cur_index].size / dist >= theta then
-              -- assert(traverse_index < 1020, "possible traverse list overflow")
+              assert(traverse_index < 1020, "possible traverse list overflow")
               if quads[cur_index].sw ~= -1 then
                 traverse_index += 1
                 traverse_list[traverse_index] = quads[cur_index].sw
