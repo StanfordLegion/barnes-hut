@@ -321,6 +321,7 @@ do
     var offset = 0
     for i=0,sector_precision*sector_precision do
       var current = bodies_by_sector[i]
+      c.printf("sector %d size %d", i, current.ispace.volume)
       var quad_size_estimate = current.ispace.volume * 12 / 5
       quad_ranges[i] = rect1d({offset, offset + quad_size_estimate})
       offset += quad_size_estimate + 1
@@ -367,7 +368,6 @@ do
 
   __demand(__parallel)
   for i in sector_index do
-    var current = bodies_by_sector[i]
     build_quad(bodies_by_sector[i], quads_by_sector_disjoint[i], quad_ranges, boundaries, sector_precision, conf.leaf_size, conf.max_depth, i)
   end
 
@@ -375,8 +375,8 @@ do
 
   var root_index = num_quads - merge_quads
   __demand(__parallel)
-  for i in body_partition_index do
-    update_body_positions(bodies_partition[i], quads, root_index)
+  for i in sector_index do
+    update_body_positions(bodies_by_sector[i], quads, root_index)
   end
 
   __demand(__parallel)
