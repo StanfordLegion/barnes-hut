@@ -26,6 +26,11 @@ class BarnesHutMapper : public DefaultMapper
 {
 public:
   BarnesHutMapper(MapperRuntime *rt, Machine machine, Processor local);
+
+  void slice_task(const MapperContext      ctx,
+                  const Task&              task,
+                  const SliceTaskInput&    input,
+                  SliceTaskOutput&   output);
 };
 
 BarnesHutMapper::BarnesHutMapper(MapperRuntime *rt, Machine machine, Processor local)
@@ -221,9 +226,45 @@ BarnesHutMapper::BarnesHutMapper(MapperRuntime *rt, Machine machine, Processor l
   }
 }
 
+void BarnesHutMapper::slice_task(const MapperContext      ctx,
+                                 const Task&              task,
+                                 const SliceTaskInput&    input,
+                                 SliceTaskOutput&   output)
+{
+  const char* task_name = task.get_task_name();
+  if (strcmp(task_name, "assign_sectors") != 0
+      && strcmp(task_name, "build_quad") != 0
+      && strcmp(task_name, "update_body_positions") != 0
+      && strcmp(task_name, "eliminate_outliers") != 0) {
+    DefaultMapper::slice_task(ctx, task, input, output);
+    return;
+  }
+
+  printf("Task name %s\n", task_name);
+  printf("Volume %lu\n", input.domain.get_volume());
+  printf("Dim %d\n", input.domain.get_dim());
+
+  // Slice it into each of the individual points and distribute them
+  // to the appropriate processors, do not recurse
+  // output.slices.resize(input.domain.get_volume());
+  unsigned idx = 0;
+  for (Domain::DomainPointIterator itr(task.index_domain); itr; itr++,idx++)
+  {
+    printf("point %lld\n", itr.p.get_point<1>().x[0]);
+//    slice.domain = Domain::from_point<1>(itr.p.get_point<1>());
+//    slice.proc = mapping->target_proc;
+//    slice.recurse = false;
+//    slice.stealable = false;
+  }
+
+  DefaultMapper::slice_task(ctx, task, input, output);
+}
+
 static void create_mappers(Machine machine, HighLevelRuntime *runtime,
                            const std::set<Processor> &local_procs)
 {
+  printf("Address space count %lu\n", machine.get_address_space_count());
+
   for (std::set<Processor>::const_iterator it = local_procs.begin();
        it != local_procs.end(); it++)
   {

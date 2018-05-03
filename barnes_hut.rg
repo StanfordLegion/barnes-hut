@@ -75,6 +75,37 @@ do
   end
 end
 
+task assign_sectors_first(bodies : region(body), boundaries : region(boundary), sector_precision : uint)
+  where
+    reads(bodies.{mass_x, mass_y, eliminated}),
+    writes(bodies.sector),
+    reads(boundaries)
+do
+  var min_x = boundaries[0].min_x
+  var min_y = boundaries[0].min_y
+  var size_x = boundaries[0].max_x - min_x
+  var size_y = boundaries[0].max_y - min_y
+  var size = max(size_x, size_y)
+  var sector_size = size / sector_precision
+
+  for body in bodies do
+    if [int](body.eliminated) == 0 then
+      var sector_x : int64 = cmath.floor((body.mass_x - min_x) / sector_size)
+      if (sector_x >= sector_precision) then
+        sector_x = sector_x - 1
+      end
+
+      var sector_y: int64 = cmath.floor((body.mass_y - min_y) / sector_size)
+      if (sector_y >= sector_precision) then
+        sector_y = sector_y - 1
+      end
+
+      var sector = sector_x + sector_y * sector_precision
+      body.sector = sector
+    end
+  end
+end
+
 task assign_sectors(bodies : region(body), boundaries : region(boundary), sector_precision : uint)
   where
     reads(bodies.{mass_x, mass_y, eliminated}),
@@ -321,7 +352,7 @@ do
     var offset = 0
     for i=0,sector_precision*sector_precision do
       var current = bodies_by_sector[i]
-      c.printf("sector %d size %d", i, current.ispace.volume)
+      -- c.printf("sector %d size %d\n", i, current.ispace.volume)
       var quad_size_estimate = current.ispace.volume * 12 / 5
       quad_ranges[i] = rect1d({offset, offset + quad_size_estimate})
       offset += quad_size_estimate + 1
@@ -330,7 +361,7 @@ do
     quad_ranges[sector_precision * sector_precision] = rect1d({offset, num_quads - 1})
 end
 
-task run_iteration(bodies : region(body), quads : region(ispace(int1d), quad), quad_ranges : region(ispace(int1d), rect1d), boundaries : region(boundary), num_quads : uint, sector_precision : uint, merge_quads : uint, conf : Config)
+task run_iteration(bodies : region(body), quads : region(ispace(int1d), quad), quad_ranges : region(ispace(int1d), rect1d), boundaries : region(boundary), num_quads : uint, sector_precision : uint, merge_quads : uint, conf : Config, iteration : int)
 where
   reads writes(bodies),
   reads writes(quads),
@@ -340,17 +371,35 @@ do
   var quad_range_space = ispace(int1d, sector_precision * sector_precision + 1)
   var sector_index = ispace(int1d, sector_precision * sector_precision)
 
-  init_boundaries(bodies, boundaries)      
-  var body_partition_index = ispace(ptr, conf.parallelism * 2)
+  init_boundaries(bodies, boundaries)
 
-  var bodies_partition = partition(equal, bodies, body_partition_index)
-  for i in body_partition_index do
-    update_boundaries(bodies_partition[i], boundaries)
-  end
+  if iteration == 0 then
+    var body_partition_index = ispace(ptr, conf.parallelism * 2)
+    var bodies_partition = partition(equal, bodies, body_partition_index)
+    
+    for i in body_partition_index do
+      update_boundaries(bodies_partition[i], boundaries)
+    end
 
-  __demand(__parallel)
-  for i in body_partition_index do
-    assign_sectors(bodies_partition[i], boundaries, sector_precision)
+    __demand(__parallel)
+    for i in body_partition_index do
+      assign_sectors_first(bodies_partition[i], boundaries, sector_precision)
+    end
+    
+    __delete(bodies_partition)
+  else 
+    var bodies_partition = partition(bodies.sector, sector_index)
+    
+    for i in sector_index do
+      update_boundaries(bodies_partition[i], boundaries)
+    end
+
+    __demand(__parallel)
+    for i in sector_index do
+      assign_sectors(bodies_partition[i], boundaries, sector_precision)
+    end
+    
+    __delete(bodies_partition)
   end
       
   var bodies_by_sector = partition(bodies.sector, sector_index)
@@ -408,7 +457,6 @@ do
     eliminate_outliers(bodies_by_sector[y], quads, root_index, sector_precision)
   end
 
-  __delete(bodies_partition)
   __delete(bodies_by_sector)
   __delete(quad_range_by_sector)
   __delete(quads_by_sector)
@@ -451,7 +499,7 @@ task main()
   var quads = region(ispace(int1d, num_quads), quad)
 
   for t=0,conf.time_steps do
-    run_iteration(all_bodies, quads, quad_ranges, boundaries, num_quads, sector_precision, merge_quads, conf)
+    run_iteration(all_bodies, quads, quad_ranges, boundaries, num_quads, sector_precision, merge_quads, conf, t)
     -- if conf.csv_dir_set then
       -- print_bodies_csv_update(bodies, conf, t+1)
     -- end
