@@ -52,7 +52,7 @@ end
 
 task update_boundaries_mass_x_max(bodies : region(body))
   where
-  reads(bodies.{mass_x, eliminated}),
+  reads(bodies.{mass_x, eliminated})
 do
   var mass = -math.huge
   for body in bodies do
@@ -65,7 +65,7 @@ end
 
 task update_boundaries_mass_x_min(bodies : region(body))
   where
-  reads(bodies.{mass_x, eliminated}),
+  reads(bodies.{mass_x, eliminated})
 do
   var mass = math.huge
   for body in bodies do
@@ -78,7 +78,7 @@ end
 
 task update_boundaries_mass_y_max(bodies : region(body))
   where
-  reads(bodies.{mass_y, eliminated}),
+  reads(bodies.{mass_y, eliminated})
 do
   var mass = -math.huge
   for body in bodies do
@@ -91,7 +91,7 @@ end
 
 task update_boundaries_mass_y_min(bodies : region(body))
   where
-  reads(bodies.{mass_y, eliminated}),
+  reads(bodies.{mass_y, eliminated})
 do
   var mass = math.huge
   for body in bodies do
@@ -105,7 +105,7 @@ end
 task assign_sectors_first(bodies : region(body), min_x : double, min_y : double, max_x : double, max_y : double, sector_precision : uint)
   where
     reads(bodies.{mass_x, mass_y, eliminated}),
-    writes(bodies.sector),
+    writes(bodies.sector)
 do
   var size_x = max_x - min_x
   var size_y = max_y - min_y
@@ -133,7 +133,7 @@ end
 task assign_sectors(bodies : region(body), min_x : double, min_y : double, max_x : double, max_y : double, sector_precision : uint)
   where
     reads(bodies.{mass_x, mass_y, eliminated}),
-    writes(bodies.sector),
+    writes(bodies.sector)
 do
   var size_x = max_x - min_x
   var size_y = max_y - min_y
@@ -272,7 +272,7 @@ task merge_tree(quads : region(ispace(int1d), quad), quad_ranges : region(ispace
 where
   reads(quads),
   reads(quad_ranges),
-  writes(quads),
+  writes(quads)
 do
   var size_x = max_x - min_x
   var size_y = max_y - min_y
@@ -383,7 +383,7 @@ task run_iteration(bodies : region(body), quads : region(ispace(int1d), quad), q
 where
   reads writes(bodies),
   reads writes(quads),
-  reads writes(quad_ranges),
+  reads writes(quad_ranges)
 do
   var quad_range_space = ispace(int1d, sector_precision * sector_precision + 1)
   var sector_index = ispace(int1d, sector_precision * sector_precision)

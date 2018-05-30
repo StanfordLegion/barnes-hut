@@ -15,7 +15,7 @@ task build_quad(bodies : region(body), quads : region(ispace(int1d), quad), quad
   where
   reads(bodies.{mass_x, mass_y, mass, index, eliminated}),
   reads(quad_range),
-  reads writes(quads),
+  reads writes(quads)
 do
   var size_x = max_x - min_x
   var size_y = max_y - min_y

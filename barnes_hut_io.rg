@@ -164,7 +164,7 @@ end
 
 task print_bodies_svg(bodies : region(body), min_x : double, min_y : double, max_x : double, max_y : double, conf : Config, time_step : uint)
   where
-    reads(bodies.{index, mass_x, mass_y, speed_x, speed_y}),
+    reads(bodies.{index, mass_x, mass_y, speed_x, speed_y})
 do
   var output_path : int8[1000]
   c.sprintf([&int8](output_path), "%s/%d.svg", conf.svg_dir, time_step)
