@@ -50,41 +50,65 @@ do
     terralib.includec("barnes_hut.h", {"-I", root_dir, "-I", runtime_dir})
 end
 
-task init_boundaries(bodies : region(body), boundaries : region(boundary))
+task update_boundaries_mass_x_max(bodies : region(body))
   where
-  reads(bodies.{mass_x, mass_y}),
-  writes(boundaries)
+  reads(bodies.{mass_x, eliminated}),
 do
-  boundaries[0] = { min_x = bodies[0].mass_x, min_y = bodies[0].mass_y, max_x = bodies[0].mass_x, max_y = bodies[0].mass_y }
-end
-
-task update_boundaries(bodies : region(body), boundaries : region(boundary))
-  where
-  reads(bodies.{mass_x, mass_y, eliminated}),
-  reads(boundaries),
-  reduces min(boundaries.{min_x, min_y}),
-  reduces max(boundaries.{max_x, max_y})
-do
+  var mass = -math.huge
   for body in bodies do
     if [int](body.eliminated) == 0 then
-      boundaries[0].min_x min = min(body.mass_x, boundaries[0].min_x)
-      boundaries[0].min_y min = min(body.mass_y, boundaries[0].min_y)
-      boundaries[0].max_x max = max(body.mass_x, boundaries[0].max_x)
-      boundaries[0].max_y max = max(body.mass_y, boundaries[0].max_y)
+      mass max= body.mass_x
     end
   end
+  return mass
 end
 
-task assign_sectors_first(bodies : region(body), boundaries : region(boundary), sector_precision : uint)
+task update_boundaries_mass_x_min(bodies : region(body))
+  where
+  reads(bodies.{mass_x, eliminated}),
+do
+  var mass = math.huge
+  for body in bodies do
+    if [int](body.eliminated) == 0 then
+      mass min= body.mass_x
+    end
+  end
+  return mass
+end
+
+task update_boundaries_mass_y_max(bodies : region(body))
+  where
+  reads(bodies.{mass_y, eliminated}),
+do
+  var mass = -math.huge
+  for body in bodies do
+    if [int](body.eliminated) == 0 then
+      mass max= body.mass_y
+    end
+  end
+  return mass
+end
+
+task update_boundaries_mass_y_min(bodies : region(body))
+  where
+  reads(bodies.{mass_y, eliminated}),
+do
+  var mass = math.huge
+  for body in bodies do
+    if [int](body.eliminated) == 0 then
+      mass min= body.mass_y
+    end
+  end
+  return mass
+end
+
+task assign_sectors_first(bodies : region(body), min_x : double, min_y : double, max_x : double, max_y : double, sector_precision : uint)
   where
     reads(bodies.{mass_x, mass_y, eliminated}),
     writes(bodies.sector),
-    reads(boundaries)
 do
-  var min_x = boundaries[0].min_x
-  var min_y = boundaries[0].min_y
-  var size_x = boundaries[0].max_x - min_x
-  var size_y = boundaries[0].max_y - min_y
+  var size_x = max_x - min_x
+  var size_y = max_y - min_y
   var size = max(size_x, size_y)
   var sector_size = size / sector_precision
 
@@ -106,16 +130,13 @@ do
   end
 end
 
-task assign_sectors(bodies : region(body), boundaries : region(boundary), sector_precision : uint)
+task assign_sectors(bodies : region(body), min_x : double, min_y : double, max_x : double, max_y : double, sector_precision : uint)
   where
     reads(bodies.{mass_x, mass_y, eliminated}),
     writes(bodies.sector),
-    reads(boundaries)
 do
-  var min_x = boundaries[0].min_x
-  var min_y = boundaries[0].min_y
-  var size_x = boundaries[0].max_x - min_x
-  var size_y = boundaries[0].max_y - min_y
+  var size_x = max_x - min_x
+  var size_y = max_y - min_y
   var size = max(size_x, size_y)
   var sector_size = size / sector_precision
 
@@ -247,17 +268,14 @@ do
   end
 end
 
-task merge_tree(quads : region(ispace(int1d), quad), quad_ranges : region(ispace(int1d), rect1d), boundaries : region(boundary), sector_precision : uint)
+task merge_tree(quads : region(ispace(int1d), quad), quad_ranges : region(ispace(int1d), rect1d), min_x : double, min_y : double, max_x : double, max_y : double, sector_precision : uint)
 where
   reads(quads),
   reads(quad_ranges),
   writes(quads),
-  reads(boundaries)
 do
-  var min_x = boundaries[0].min_x
-  var min_y = boundaries[0].min_y
-  var size_x = boundaries[0].max_x - min_x
-  var size_y = boundaries[0].max_y - min_y
+  var size_x = max_x - min_x
+  var size_y = max_y - min_y
   var size = max(size_x, size_y)
 
   var to_merge : int[64][64]
@@ -361,42 +379,76 @@ do
     quad_ranges[sector_precision * sector_precision] = rect1d({offset, num_quads - 1})
 end
 
-task run_iteration(bodies : region(body), quads : region(ispace(int1d), quad), quad_ranges : region(ispace(int1d), rect1d), boundaries : region(boundary), num_quads : uint, sector_precision : uint, merge_quads : uint, conf : Config, iteration : int)
+task run_iteration(bodies : region(body), quads : region(ispace(int1d), quad), quad_ranges : region(ispace(int1d), rect1d), num_quads : uint, sector_precision : uint, merge_quads : uint, conf : Config, iteration : int)
 where
   reads writes(bodies),
   reads writes(quads),
   reads writes(quad_ranges),
-  reads writes(boundaries)
 do
   var quad_range_space = ispace(int1d, sector_precision * sector_precision + 1)
   var sector_index = ispace(int1d, sector_precision * sector_precision)
 
-  init_boundaries(bodies, boundaries)
-
+  var min_x = math.huge
+  var min_y = -math.huge
+  var max_x = -math.huge
+  var max_y = math.huge
+  
   if iteration == 0 then
     var body_partition_index = ispace(ptr, conf.parallelism * 2)
     var bodies_partition = partition(equal, bodies, body_partition_index)
-    
+
+    __demand(__parallel)
     for i in body_partition_index do
-      update_boundaries(bodies_partition[i], boundaries)
+      min_x min= update_boundaries_mass_x_min(bodies_partition[i])
+    end
+    
+    __demand(__parallel)
+    for i in body_partition_index do
+      max_x max= update_boundaries_mass_x_max(bodies_partition[i])
     end
 
     __demand(__parallel)
     for i in body_partition_index do
-      assign_sectors_first(bodies_partition[i], boundaries, sector_precision)
+      min_y min= update_boundaries_mass_y_min(bodies_partition[i])
+    end
+    
+    __demand(__parallel)
+    for i in body_partition_index do
+      max_y max= update_boundaries_mass_y_max(bodies_partition[i])
+    end
+
+    __demand(__parallel)
+    for i in body_partition_index do
+      assign_sectors_first(bodies_partition[i], min_x, min_y, max_x, max_y, sector_precision)
     end
     
     __delete(bodies_partition)
   else 
     var bodies_partition = partition(bodies.sector, sector_index)
-    
+
+    __demand(__parallel)
     for i in sector_index do
-      update_boundaries(bodies_partition[i], boundaries)
+      min_x min= update_boundaries_mass_x_min(bodies_partition[i])
+    end
+    
+    __demand(__parallel)
+    for i in sector_index do
+      max_x max= update_boundaries_mass_x_max(bodies_partition[i])
     end
 
     __demand(__parallel)
     for i in sector_index do
-      assign_sectors(bodies_partition[i], boundaries, sector_precision)
+      min_y min= update_boundaries_mass_y_min(bodies_partition[i])
+    end
+    
+    __demand(__parallel)
+    for i in sector_index do
+      max_y max= update_boundaries_mass_y_max(bodies_partition[i])
+    end
+
+    __demand(__parallel)
+    for i in sector_index do
+      assign_sectors(bodies_partition[i], min_x, min_y, max_x, max_y, sector_precision)
     end
     
     __delete(bodies_partition)
@@ -417,10 +469,10 @@ do
 
   __demand(__parallel)
   for i in sector_index do
-    build_quad(bodies_by_sector[i], quads_by_sector_disjoint[i], quad_ranges, boundaries, sector_precision, conf.leaf_size, conf.max_depth, i)
+    build_quad(bodies_by_sector[i], quads_by_sector_disjoint[i], quad_ranges, min_x, min_y, max_x, max_y, sector_precision, conf.leaf_size, conf.max_depth, i)
   end
 
-  merge_tree(quads, quad_ranges, boundaries, sector_precision)
+  merge_tree(quads, quad_ranges, min_x, min_y, max_x, max_y, sector_precision)
 
   var root_index = num_quads - merge_quads
   __demand(__parallel)
@@ -476,8 +528,6 @@ task main()
   -- if conf.csv_dir_set then
     -- print_bodies_csv_initial(all_bodies, conf)
   -- end
-
-  var boundaries = region(ispace(ptr, 1), boundary)
   
 --  if conf.svg_dir_set then
 --    boundaries[0] = { min_x = all_bodies[0].mass_x, min_y = all_bodies[0].mass_y, max_x = all_bodies[0].mass_x, max_y = all_bodies[0].mass_y }
@@ -499,7 +549,7 @@ task main()
   var quads = region(ispace(int1d, num_quads), quad)
 
   for t=0,conf.time_steps do
-    run_iteration(all_bodies, quads, quad_ranges, boundaries, num_quads, sector_precision, merge_quads, conf, t)
+    run_iteration(all_bodies, quads, quad_ranges, num_quads, sector_precision, merge_quads, conf, t)
     -- if conf.csv_dir_set then
       -- print_bodies_csv_update(bodies, conf, t+1)
     -- end

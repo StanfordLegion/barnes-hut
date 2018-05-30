@@ -11,17 +11,14 @@ fspace quad {
   {ne, nw, se, sw, next_in_leaf} : int,
 }
 
-task build_quad(bodies : region(body), quads : region(ispace(int1d), quad), quad_range : region(ispace(int1d), rect1d), boundaries : region(boundary), sector_precision : uint, leaf_size : uint, max_depth : int, sector : int1d)
+task build_quad(bodies : region(body), quads : region(ispace(int1d), quad), quad_range : region(ispace(int1d), rect1d), min_x : double, min_y : double, max_x : double, max_y : double, sector_precision : uint, leaf_size : uint, max_depth : int, sector : int1d)
   where
   reads(bodies.{mass_x, mass_y, mass, index, eliminated}),
   reads(quad_range),
   reads writes(quads),
-  reads (boundaries)
 do
-  var min_x = boundaries[0].min_x
-  var min_y = boundaries[0].min_y
-  var size_x = boundaries[0].max_x - min_x
-  var size_y = boundaries[0].max_y - min_y
+  var size_x = max_x - min_x
+  var size_y = max_y - min_y
   var size = max(size_x, size_y)
   var min_size = max(size / max_depth, 0.0001)
 
