@@ -389,10 +389,10 @@ do
   var sector_index = ispace(int1d, sector_precision * sector_precision)
 
   var min_x = math.huge
-  var min_y = -math.huge
+  var min_y = math.huge
   var max_x = -math.huge
-  var max_y = math.huge
-  
+  var max_y = -math.huge
+
   if iteration == 0 then
     var body_partition_index = ispace(ptr, conf.parallelism * 2)
     var bodies_partition = partition(equal, bodies, body_partition_index)
@@ -401,7 +401,7 @@ do
     for i in body_partition_index do
       min_x min= update_boundaries_mass_x_min(bodies_partition[i])
     end
-    
+
     __demand(__parallel)
     for i in body_partition_index do
       max_x max= update_boundaries_mass_x_max(bodies_partition[i])
@@ -430,7 +430,7 @@ do
     for i in sector_index do
       min_x min= update_boundaries_mass_x_min(bodies_partition[i])
     end
-    
+
     __demand(__parallel)
     for i in sector_index do
       max_x max= update_boundaries_mass_x_max(bodies_partition[i])
