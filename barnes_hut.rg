@@ -488,25 +488,27 @@ do
   var start_index = sector_precision * (sector_precision - 1)
   var end_index = sector_precision * sector_precision - 1
 
-  __demand(__parallel)
-  for x=start_index,end_index do
-    eliminate_outliers(bodies_by_sector[x], quads, root_index, sector_precision)
-  end
+  if iteration ~= conf.time_steps - 1 then
+    __demand(__parallel)
+    for x=start_index,end_index do
+      eliminate_outliers(bodies_by_sector[x], quads, root_index, sector_precision)
+    end
 
-  start_index = sector_precision
-  end_index = sector_precision * (sector_precision - 1)
+    start_index = sector_precision
+    end_index = sector_precision * (sector_precision - 1)
 
-  -- __demand(__parallel)
-  for y=start_index,end_index,sector_precision do
-    eliminate_outliers(bodies_by_sector[y], quads, root_index, sector_precision)
-  end
+    -- __demand(__parallel)
+    for y=start_index,end_index,sector_precision do
+      eliminate_outliers(bodies_by_sector[y], quads, root_index, sector_precision)
+    end
 
-  start_index = sector_precision + sector_precision - 1
-  end_index = sector_precision * (sector_precision - 1) + sector_precision - 1
+    start_index = sector_precision + sector_precision - 1
+    end_index = sector_precision * (sector_precision - 1) + sector_precision - 1
 
-  -- __demand(__parallel)
-  for y=start_index,end_index,sector_precision do
-    eliminate_outliers(bodies_by_sector[y], quads, root_index, sector_precision)
+    -- __demand(__parallel)
+    for y=start_index,end_index,sector_precision do
+      eliminate_outliers(bodies_by_sector[y], quads, root_index, sector_precision)
+    end
   end
 
   __delete(bodies_by_sector)
