@@ -274,7 +274,7 @@ do
     end
 end
 
-task run_iteration(bodies : region(body), roots : region(ispace(int1d), quad), quads : region(ispace(int1d), quad), quad_ranges : region(ispace(int1d), rect1d), num_quads : uint, sector_precision : uint, merge_quads : uint, conf : Config, iteration : int)
+task run_iteration(bodies : region(body), roots : region(ispace(int1d), quad), quads : region(ispace(int1d), quad), quad_ranges : region(ispace(int1d), rect1d), num_quads : uint, sector_precision : uint, conf : Config, iteration : int)
 where
   reads writes(bodies),
   reads writes(roots),
@@ -374,50 +374,52 @@ do
   for i in sector_space do
     update_body_force_root(bodies_by_sector[i], roots, i, sector_precision)
   end
-
   __demand(__parallel)
   for i in sector_space do
     update_body_force(bodies_by_sector[i], quads_by_sector_disjoint[i], quad_range_by_sector[i], i)
   end
-
+  
   for i=0,sector_precision-1 do
     for j=0,sector_precision do
       update_body_force(bodies_by_sector[i + j * sector_precision], quads_by_sector_disjoint[i + j * sector_precision + 1], quad_range_by_sector[i + j * sector_precision + 1], i + j * sector_precision + 1)
     end
-
     for j=0,sector_precision-1 do
       update_body_force(bodies_by_sector[i + j * sector_precision], quads_by_sector_disjoint[i + (j + 1) * sector_precision + 1], quad_range_by_sector[i + (j + 1) * sector_precision + 1], i + (j + 1) * sector_precision + 1)
     end
-
     for j=1,sector_precision do
       update_body_force(bodies_by_sector[i + j * sector_precision], quads_by_sector_disjoint[i + (j - 1) * sector_precision + 1], quad_range_by_sector[i + (j - 1) * sector_precision + 1], i + (j - 1) * sector_precision + 1)
     end
   end
-
   for i=1,sector_precision do
     for j=0,sector_precision do
       update_body_force(bodies_by_sector[i + j * sector_precision], quads_by_sector_disjoint[i + j * sector_precision - 1], quad_range_by_sector[i + j * sector_precision - 1], i + j * sector_precision - 1)
     end
-
     for j=0,sector_precision-1 do
       update_body_force(bodies_by_sector[i + j * sector_precision], quads_by_sector_disjoint[i + (j - 1) * sector_precision + 1], quad_range_by_sector[i + (j - 1) * sector_precision + 1], i + (j - 1) * sector_precision + 1)
     end
-
     for j=1,sector_precision do
       update_body_force(bodies_by_sector[i + j * sector_precision], quads_by_sector_disjoint[i + (j - 1) * sector_precision - 1], quad_range_by_sector[i + (j - 1) * sector_precision - 1], i + (j - 1) * sector_precision - 1)
     end
   end
-
   for i=0,sector_precision do
     for j=0,sector_precision-1 do
       update_body_force(bodies_by_sector[i + j * sector_precision], quads_by_sector_disjoint[i + (j + 1) * sector_precision], quad_range_by_sector[i + (j + 1) * sector_precision], i + (j + 1) * sector_precision)
     end
   end
-
   for i=0,sector_precision do
     for j=1,sector_precision do
       update_body_force(bodies_by_sector[i + j * sector_precision], quads_by_sector_disjoint[i + (j - 1) * sector_precision], quad_range_by_sector[i + (j - 1) * sector_precision], i + (j - 1) * sector_precision)
     end
+  end
+
+  __demand(__parallel)
+  for i in sector_space do
+    update_body_mass(bodies_by_sector[i])
+  end
+
+  __demand(__parallel)
+  for i in sector_space do
+    update_body_speed(bodies_by_sector[i])
   end
 
   __delete(bodies_by_sector)
@@ -431,7 +433,6 @@ task main()
   var conf = parse_input_args()
   
   var num_bodies = get_number_of_bodies(conf)
-  -- c.printf("Loading %d bodies\n", num_bodies)
   var all_bodies = region(ispace(ptr, num_bodies), body)
 
   load_bodies(all_bodies, conf, num_bodies)
@@ -441,16 +442,12 @@ task main()
   var roots = region(sector_space, quad)
   var quad_ranges = region(sector_space, rect1d)
 
-  var merge_quads = 0
-  for i=0,conf.N do
-    merge_quads += pow(4, i)
-  end
-  var num_quads = num_bodies * 12 / 5 + merge_quads
+  var num_quads = num_bodies * 12 / 5 + sector_precision*sector_precision
 
   var quads = region(ispace(int1d, num_quads), quad)
 
   for t=0,conf.time_steps do
-    run_iteration(all_bodies, roots, quads, quad_ranges, num_quads, sector_precision, merge_quads, conf, t)
+    run_iteration(all_bodies, roots, quads, quad_ranges, num_quads, sector_precision, conf, t)
   end
 
   __fence(__execution, __block)

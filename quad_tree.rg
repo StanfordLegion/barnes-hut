@@ -35,7 +35,6 @@ do
   quads[root_index].center_y = min_y + (sector_y + 0.5) * size / sector_precision
   quads[root_index].size = size / sector_precision
   quads[root_index].type = 2
-  -- regentlib.c.printf("root %f %f %d %d %d %f %f\n", min_x, size, root_index, sector_x, sector_y, quads[root_index].center_x, quads[root_index].center_y)
   
   var parent_list : int1d[1024]
   var child_list : int1d[1024]
