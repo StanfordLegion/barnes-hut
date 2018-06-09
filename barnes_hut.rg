@@ -180,8 +180,6 @@ do
   for body in bodies do
     traverse_list[0] = root_index
     var traverse_index = 0
-    var force_x : double = 0.0f
-    var force_y : double = 0.0f
 
     while traverse_index >= 0 do
       var cur_index : int = traverse_list[traverse_index]
@@ -374,6 +372,7 @@ do
   for i in sector_space do
     update_body_force_root(bodies_by_sector[i], roots, i, sector_precision)
   end
+  
   __demand(__parallel)
   for i in sector_space do
     update_body_force(bodies_by_sector[i], quads_by_sector_disjoint[i], quad_range_by_sector[i], i)
@@ -383,29 +382,36 @@ do
     for j=0,sector_precision do
       update_body_force(bodies_by_sector[i + j * sector_precision], quads_by_sector_disjoint[i + j * sector_precision + 1], quad_range_by_sector[i + j * sector_precision + 1], i + j * sector_precision + 1)
     end
+    
     for j=0,sector_precision-1 do
       update_body_force(bodies_by_sector[i + j * sector_precision], quads_by_sector_disjoint[i + (j + 1) * sector_precision + 1], quad_range_by_sector[i + (j + 1) * sector_precision + 1], i + (j + 1) * sector_precision + 1)
     end
+    
     for j=1,sector_precision do
       update_body_force(bodies_by_sector[i + j * sector_precision], quads_by_sector_disjoint[i + (j - 1) * sector_precision + 1], quad_range_by_sector[i + (j - 1) * sector_precision + 1], i + (j - 1) * sector_precision + 1)
     end
   end
+  
   for i=1,sector_precision do
     for j=0,sector_precision do
       update_body_force(bodies_by_sector[i + j * sector_precision], quads_by_sector_disjoint[i + j * sector_precision - 1], quad_range_by_sector[i + j * sector_precision - 1], i + j * sector_precision - 1)
     end
+    
     for j=0,sector_precision-1 do
       update_body_force(bodies_by_sector[i + j * sector_precision], quads_by_sector_disjoint[i + (j - 1) * sector_precision + 1], quad_range_by_sector[i + (j - 1) * sector_precision + 1], i + (j - 1) * sector_precision + 1)
     end
+    
     for j=1,sector_precision do
       update_body_force(bodies_by_sector[i + j * sector_precision], quads_by_sector_disjoint[i + (j - 1) * sector_precision - 1], quad_range_by_sector[i + (j - 1) * sector_precision - 1], i + (j - 1) * sector_precision - 1)
     end
   end
+  
   for i=0,sector_precision do
     for j=0,sector_precision-1 do
       update_body_force(bodies_by_sector[i + j * sector_precision], quads_by_sector_disjoint[i + (j + 1) * sector_precision], quad_range_by_sector[i + (j + 1) * sector_precision], i + (j + 1) * sector_precision)
     end
   end
+  
   for i=0,sector_precision do
     for j=1,sector_precision do
       update_body_force(bodies_by_sector[i + j * sector_precision], quads_by_sector_disjoint[i + (j - 1) * sector_precision], quad_range_by_sector[i + (j - 1) * sector_precision], i + (j - 1) * sector_precision)
