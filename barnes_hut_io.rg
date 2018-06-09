@@ -27,7 +27,7 @@ terra parse_input_args()
   conf.csv_dir_set = false
   conf.svg_dir_set = false
   conf.leaf_size = 32
-  conf.N = 3
+  conf.N = 4
   conf.parallelism = 16
   conf.fixed_partition_size = -1
   conf.max_depth = -1
