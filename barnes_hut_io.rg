@@ -68,23 +68,6 @@ terra parse_input_args()
     end
   end
 
-  -- if not conf.input_file_set then
-    -- c.printf("input file must be set")
-    -- c.exit(-1)
-  -- end
-
-  -- c.printf("settings: time_steps=%d parallelism=%d N=%d leaf_size=%d max_depth=%d input_file=%s", conf.time_steps, conf.parallelism, conf.N, conf.leaf_size, conf.max_depth, conf.input_file)
-
-  -- if conf.csv_dir_set then
-    -- c.printf(" csv_dir=%s", conf.csv_dir)
-  -- end
-
-  -- if conf.svg_dir_set then
-    -- c.printf(" svg_dir=%s", conf.svg_dir)
-  -- end
-
-  -- c.printf("\n\n")
-
   return conf
 end
 
@@ -104,10 +87,8 @@ end
 
 task load_bodies(bodies : region(body), conf : Config, num_bodies : int)
   where
-    reads(bodies.eliminated),
-    writes(bodies.{index, mass_x, mass_y, speed_x, speed_y, mass, eliminated})
+    writes(bodies.{index, mass_x, mass_y, speed_x, speed_y, mass})
 do
-  fill(bodies.eliminated, 0)
   var index = 0
   var mass_x = 0.0
   var mass_y = 0.0
@@ -129,58 +110,5 @@ do
     bodies[index].mass = std.atof(cstring.strtok([&int8](0), ","))
   end
 
-  c.fclose(fp)
-end
-
-task print_bodies_csv_initial(bodies : region(body), conf : Config)
-  where reads(bodies.{index, mass_x, mass_y, speed_x, speed_y, mass})
-do
-  var output_path : int8[1000]
-  c.sprintf([&int8](output_path), "%s/0.csv", conf.csv_dir)
-
-  var fp = c.fopen(output_path, "w")
-  for body in bodies do
-    c.fprintf(fp, "%d,%f,%f,%f,%f,%f\n", body.index, body.mass_x, body.mass_y, body.speed_x, body.speed_y, body.mass)
-  end
-
-  c.fclose(fp)
-end
-
-task print_bodies_csv_update(bodies : region(body), conf : Config, time_step : uint)
-  where reads(bodies.{index, mass, mass_x, mass_y, speed_x, speed_y, eliminated})
-do
-  var output_path : int8[1000]
-  c.sprintf([&int8](output_path), "%s/%d.csv", conf.csv_dir, time_step)
-
-  var fp = c.fopen(output_path, "w")
-  for body in bodies do
-    -- if [int](body.eliminated) == 0 then
-      c.fprintf(fp, "%d,%f,%f,%f,%f,%f\n", body.index, body.mass_x, body.mass_y, body.speed_x, body.speed_y, body.mass)
-    -- end
-  end
-
-  c.fclose(fp)
-end
-
-task print_bodies_svg(bodies : region(body), min_x : double, min_y : double, max_x : double, max_y : double, conf : Config, time_step : uint)
-  where
-    reads(bodies.{index, mass_x, mass_y, speed_x, speed_y})
-do
-  var output_path : int8[1000]
-  c.sprintf([&int8](output_path), "%s/%d.svg", conf.svg_dir, time_step)
-
-  var fp = c.fopen(output_path, "w")
-  c.fprintf(fp, "<svg viewBox=\"0 0 850 850\" xmlns=\"http://www.w3.org/2000/svg\">")
-
-  var size_x = max_x - min_x
-  var size_y = max_y - min_y
-  var size = max(size_x, size_y)
-  var scale = 800.0 / size
-
-  for body in bodies do
-    c.fprintf(fp, "<circle cx=\"%f\" cy=\"%f\" r=\"10\" fill=\"blue\" />", (body.mass_x - min_x) * scale + 25,  (body.mass_y - min_y) * scale + 25)
-  end
-
-  c.fprintf(fp, "</svg>")
   c.fclose(fp)
 end
