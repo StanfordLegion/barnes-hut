@@ -13,6 +13,7 @@ fspace quad {
 
 task build_quad(bodies : region(body), roots : region(ispace(int1d), quad), quads : region(ispace(int1d), quad), quad_range : region(ispace(int1d), rect1d), min_x : double, min_y : double, max_x : double, max_y : double, sector_precision : uint, leaf_size : uint, max_depth : int, sector : int1d)
   where
+  roots * quads,
   reads(bodies.{mass_x, mass_y, mass, index}),
   reads(quad_range),
   reads writes(roots),

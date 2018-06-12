@@ -274,6 +274,7 @@ end
 
 task run_iteration(bodies : region(body), roots : region(ispace(int1d), quad), quads : region(ispace(int1d), quad), quad_ranges : region(ispace(int1d), rect1d), num_quads : uint, sector_precision : uint, conf : Config, iteration : int)
 where
+  roots * quads,
   reads writes(bodies),
   reads writes(roots),
   reads writes(quads),
@@ -363,7 +364,7 @@ do
   var quads_by_sector_colors = quads_by_sector.colors
   var quads_by_sector_disjoint = dynamic_cast(partition(disjoint, quads, quads_by_sector_colors), quads_by_sector)
 
-  -- __demand(__parallel)
+  __demand(__parallel)
   for i in sector_space do
     build_quad(bodies_by_sector[i], roots_by_sector[i], quads_by_sector_disjoint[i], quad_range_by_sector[i], min_x, min_y, max_x, max_y, sector_precision, conf.leaf_size, conf.max_depth, i)
   end
