@@ -14,7 +14,6 @@ struct Config {
   csv_dir : rawstring,
   csv_dir_set : bool,
   parallelism : uint,
-  N : uint,
   leaf_size : uint
   fixed_partition_size : uint,
   max_depth : uint,
@@ -27,7 +26,6 @@ terra parse_input_args()
   conf.csv_dir_set = false
   conf.svg_dir_set = false
   conf.leaf_size = 32
-  conf.N = 4
   conf.parallelism = 16
   conf.fixed_partition_size = -1
   conf.max_depth = -1
@@ -53,9 +51,6 @@ terra parse_input_args()
     elseif cstring.strcmp(args.argv[i], "-p") == 0 then
       i = i + 1
       conf.parallelism = std.atoi(args.argv[i])
-    elseif cstring.strcmp(args.argv[i], "-N") == 0 then
-      i = i + 1
-      conf.N = std.atoi(args.argv[i])
     elseif cstring.strcmp(args.argv[i], "-l") == 0 then
       i = i + 1
       conf.leaf_size = std.atoi(args.argv[i])
