@@ -211,19 +211,15 @@ void BarnesHutMapper::slice_task(const MapperContext ctx,
                                  SliceTaskOutput &output) {
   const char *task_name = task.get_task_name();
   if (strcmp(task_name, "assign_sectors") != 0
-      && strcmp(task_name, "build_quad") != 0
-      && strcmp(task_name, "update_body_positions") != 0
-      && strcmp(task_name, "eliminate_outliers") != 0) {
+      && strcmp(task_name, "update_body_force_root")
+      && strcmp(task_name, "update_body_force") != 0
+      && strcmp(task_name, "update_body_speed") != 0) {
     DefaultMapper::slice_task(ctx, task, input, output);
     return;
   }
 
 //  printf("Task name %s\n", task_name);
 //  printf("Volume %lu\n", input.domain.get_volume());
-
-  if (sector_size == -1) {
-
-  }
 
   double scaling_factor = (double) cpus.size() / sector_size;
 //  printf("Scaling Factor %f\n", scaling_factor);
