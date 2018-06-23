@@ -211,7 +211,7 @@ void BarnesHutMapper::slice_task(const MapperContext ctx,
                                  SliceTaskOutput &output) {
   const char *task_name = task.get_task_name();
   if (strcmp(task_name, "assign_sectors") != 0
-      && strcmp(task_name, "update_body_force_root")
+      && strcmp(task_name, "update_body_force_root") != 0
       && strcmp(task_name, "update_body_force") != 0
       && strcmp(task_name, "update_body_speed") != 0) {
     DefaultMapper::slice_task(ctx, task, input, output);
