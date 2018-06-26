@@ -2858,7 +2858,6 @@ end
 
 task calculate_quad_ranges(bodies : region(body), bodies_by_sector : partition(disjoint, bodies, ispace(int1d)), quad_ranges : region(ispace(int1d), rect1d), num_quads : uint)
 where
-  reads(bodies),
   writes(quad_ranges)
 do
     var offset = 0
@@ -2874,7 +2873,7 @@ task run_iteration(bodies : region(body), roots : region(ispace(int1d), quad), q
 where
   roots * quads,
   reads writes(bodies),
-  reads writes(roots),
+  reads writes(roots.{mass_x, mass_y, mass}),
   reads writes(quads),
   reads writes(quad_ranges)
 do

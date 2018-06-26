@@ -16,7 +16,7 @@ task build_quad(bodies : region(body), roots : region(ispace(int1d), quad), quad
   roots * quads,
   reads(bodies.{mass_x, mass_y, mass, index}),
   reads(quad_range),
-  reads writes(roots),
+  writes(roots.{mass_x, mass_y, mass}),
   reads writes(quads)
 do
   var size_x = max_x - min_x
@@ -229,5 +229,7 @@ do
     end
   end
   
-  roots[sector] = quads[root_index]
+  roots[sector].mass_x = quads[root_index].mass_x
+  roots[sector].mass_y = quads[root_index].mass_y
+  roots[sector].mass = quads[root_index].mass
 end
