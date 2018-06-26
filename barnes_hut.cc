@@ -210,29 +210,47 @@ void BarnesHutMapper::slice_task(const MapperContext ctx,
                                  const SliceTaskInput &input,
                                  SliceTaskOutput &output) {
   const char *task_name = task.get_task_name();
-  if (strcmp(task_name, "assign_sectors") != 0
-      && strcmp(task_name, "update_body_force_root") != 0
-      && strcmp(task_name, "update_body_force") != 0
-      && strcmp(task_name, "update_body_speed") != 0) {
+  if (strcmp(task_name, "build_quad") != 0
+      && strcmp(task_name, "assign_sectors") != 0
+      && strcmp(task_name, "update_bodies_first") != 0
+      && strcmp(task_name, "update_bodies_first_row") != 0
+      && strcmp(task_name, "update_bodies_middle_first") != 0
+      && strcmp(task_name, "update_bodies_middle") != 0
+      && strcmp(task_name, "update_bodies_middle_last") != 0
+      && strcmp(task_name, "update_bodies_last_row") != 0
+      && strcmp(task_name, "update_bodies_last") != 0) {
     DefaultMapper::slice_task(ctx, task, input, output);
     return;
   }
 
-//  printf("Task name %s\n", task_name);
-//  printf("Volume %lu\n", input.domain.get_volume());
+  // printf("Task name %s\n", task_name);
+  // printf("Volume %lu\n", input.domain.get_volume());
 
   double scaling_factor = (double) cpus.size() / sector_size;
-//  printf("Scaling Factor %f\n", scaling_factor);
+  // printf("Scaling Factor %f\n", scaling_factor);
 
   output.slices.resize(input.domain.get_volume());
   unsigned idx = 0;
   for (Domain::DomainPointIterator itr(task.index_domain); itr; itr++, idx++) {
     TaskSlice &slice = output.slices[idx];
-    slice.domain = Domain::from_point<1>(itr.p.get_point<1>());
-    long sector = itr.p.get_point<1>().x[0];
 
-//    printf("sector %lu\n", sector);
-//    printf("cpu %f\n", sector * scaling_factor);
+    slice.domain = Domain::from_point<1>(itr.p.get_point<1>());
+    long sector;
+
+    if (strcmp(task_name, "update_bodies_first") == 0) {
+      sector = 0;
+    } else if (strcmp(task_name, "update_bodies_middle_first") == 0) {
+      sector = sector_size;
+    } else if (strcmp(task_name, "update_bodies_middle_last") == 0) {
+      sector = sector_size * (sector_size - 1) - 1;
+    } else if (strcmp(task_name, "update_bodies_last") == 0) {
+      sector = sector_size * sector_size - 1;
+    } else {
+      sector = itr.p.get_point<1>().x[0];      
+    }
+
+    // printf("sector %lu\n", sector);
+    // printf("cpu %f\n", sector * scaling_factor);
 
     slice.proc = cpus.at((int) sector * scaling_factor);
     slice.recurse = false;
@@ -265,7 +283,7 @@ static void create_mappers(Machine machine, HighLevelRuntime *runtime,
   if (num_sectors_env) {
     num_sectors = atoi(num_sectors_env);
   } else {
-    num_sectors = 256;
+    num_sectors = 64;
   }
 
   for (std::set<Processor>::const_iterator it = local_procs.begin();

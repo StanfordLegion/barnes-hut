@@ -2981,17 +2981,6 @@ do
       quads_by_sector_disjoint[i + sector_precision + 1], quad_range_by_sector[i + sector_precision + 1])
   end
 
-  __demand(__parallel)
-  for i=sector_precision*(sector_precision-1),sector_precision*sector_precision-1 do
-    update_bodies_last_row(bodies_by_sector[i], i, roots,
-      quads_by_sector_disjoint[i], quad_range_by_sector[i],
-      quads_by_sector_disjoint[i - 1], quad_range_by_sector[i - 1],
-      quads_by_sector_disjoint[i + 1], quad_range_by_sector[i + 1], 
-      quads_by_sector_disjoint[i - sector_precision], quad_range_by_sector[i - sector_precision],
-      quads_by_sector_disjoint[i - sector_precision - 1], quad_range_by_sector[i - sector_precision - 1],
-      quads_by_sector_disjoint[i - sector_precision + 1], quad_range_by_sector[i - sector_precision + 1])
-  end
-
   update_bodies_middle_first(bodies_by_sector[sector_precision], roots,
     quads_by_sector_disjoint[sector_precision], quad_range_by_sector[sector_precision],
     quads_by_sector_disjoint[sector_precision + 1], quad_range_by_sector[sector_precision + 1],
@@ -3021,6 +3010,17 @@ do
     quads_by_sector_disjoint[sector_precision*(sector_precision-2)-2], quad_range_by_sector[sector_precision*(sector_precision-2)-2],
     quads_by_sector_disjoint[sector_precision*sector_precision-1], quad_range_by_sector[sector_precision*sector_precision-1],
     quads_by_sector_disjoint[sector_precision*sector_precision-2], quad_range_by_sector[sector_precision*sector_precision-2])
+
+  __demand(__parallel)
+  for i=sector_precision*(sector_precision-1),sector_precision*sector_precision-1 do
+    update_bodies_last_row(bodies_by_sector[i], i, roots,
+      quads_by_sector_disjoint[i], quad_range_by_sector[i],
+      quads_by_sector_disjoint[i - 1], quad_range_by_sector[i - 1],
+      quads_by_sector_disjoint[i + 1], quad_range_by_sector[i + 1], 
+      quads_by_sector_disjoint[i - sector_precision], quad_range_by_sector[i - sector_precision],
+      quads_by_sector_disjoint[i - sector_precision - 1], quad_range_by_sector[i - sector_precision - 1],
+      quads_by_sector_disjoint[i - sector_precision + 1], quad_range_by_sector[i - sector_precision + 1])
+  end
 
   update_bodies_last(bodies_by_sector[sector_precision*sector_precision-1], roots,
     quads_by_sector_disjoint[sector_precision*sector_precision-1], quad_range_by_sector[sector_precision*sector_precision-1],
