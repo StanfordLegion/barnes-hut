@@ -9,6 +9,13 @@ local sqrt = regentlib.sqrt(float)
 
 local cmath = terralib.includec("math.h")
 
+local hdf5 = terralib.includec("hdf5.h")
+hdf5.H5F_ACC_TRUNC = 2
+hdf5.H5T_STD_I32LE = hdf5.H5T_STD_I32LE_g
+hdf5.H5T_STD_I64LE = hdf5.H5T_STD_I64LE_g
+hdf5.H5T_IEEE_F64LE = hdf5.H5T_IEEE_F64LE_g
+hdf5.H5P_DEFAULT = 0
+
 local gee = 100.0
 local delta = 0.1
 local theta = 0.5
@@ -104,6 +111,7 @@ do
   var sector_size = size / sector_precision
 
   for body in bodies do
+    c.printf("%f %f\n", body.mass_x, body.mass_y)
     var sector_x : int64 = cmath.floor((body.mass_x - min_x) / sector_size)
     if (sector_x >= sector_precision) then
       sector_x = sector_x - 1
@@ -3038,22 +3046,25 @@ task main()
   var ts_start = c.legion_get_current_time_in_micros()
   var conf = parse_input_args()
   
-  var num_bodies = get_number_of_bodies(conf)
-  var all_bodies = region(ispace(ptr, num_bodies), body)
+  var all_bodies = region(ispace(ptr, conf.num_bodies), body)
 
-  load_bodies(all_bodies, conf, num_bodies)
+  attach(hdf5, all_bodies.{mass, mass_x, mass_y, speed_x, speed_y, index}, conf.input_file, regentlib.file_read_write)
+  acquire(all_bodies.{mass, mass_x, mass_y, speed_x, speed_y, index})
 
   var sector_space = ispace(int1d, sector_precision * sector_precision)
   var roots = region(sector_space, quad)
   var quad_ranges = region(sector_space, rect1d)
 
-  var num_quads = num_bodies * 12 / 5 + sector_precision*sector_precision
+  var num_quads = conf.num_bodies * 12 / 5 + sector_precision*sector_precision
 
   var quads = region(ispace(int1d, num_quads), quad)
 
   for t=0,conf.time_steps do
     run_iteration(all_bodies, roots, quads, quad_ranges, num_quads, conf, t)
   end
+
+  release(all_bodies.{mass, mass_x, mass_y, speed_x, speed_y, index})
+  detach(hdf5, all_bodies.{mass, mass_x, mass_y, speed_x, speed_y, index})
 
   __fence(__execution, __block)
   var ts_end = c.legion_get_current_time_in_micros()

@@ -9,6 +9,7 @@ struct Config {
   time_steps : uint,
   input_file : rawstring,
   input_file_set : bool,
+  num_bodies : uint,
   svg_dir : rawstring,
   svg_dir_set : bool,
   csv_dir : rawstring,
@@ -23,6 +24,7 @@ terra parse_input_args()
   var conf : Config
   conf.time_steps = 10
   conf.input_file_set = false
+  conf.num_bodies = -1
   conf.csv_dir_set = false
   conf.svg_dir_set = false
   conf.leaf_size = 32
@@ -37,6 +39,9 @@ terra parse_input_args()
       i = i + 1
       conf.input_file = args.argv[i]
       conf.input_file_set = true
+    elseif cstring.strcmp(args.argv[i], "-n") == 0 then
+      i = i + 1
+      conf.num_bodies = std.atoi(args.argv[i])
     elseif cstring.strcmp(args.argv[i], "-c") == 0 then
       i = i + 1
       conf.csv_dir = args.argv[i]
@@ -64,46 +69,4 @@ terra parse_input_args()
   end
 
   return conf
-end
-
-terra get_number_of_bodies(conf : Config)
-  var fp = c.fopen(conf.input_file, "r")
-  var line : int8[1024]
-  var num_lines = 0
-  
-  while c.fgets(line, 1024, fp) ~= nil do
-     num_lines = num_lines + 1
-  end
-
-  c.fclose(fp)
-
-  return num_lines
-end
-
-task load_bodies(bodies : region(body), conf : Config, num_bodies : int)
-  where
-    writes(bodies.{index, mass_x, mass_y, speed_x, speed_y, mass})
-do
-  var index = 0
-  var mass_x = 0.0
-  var mass_y = 0.0
-  var speed_x = 0.0
-  var speed_y = 0.0
-  var mass = 0.0
-
-  var fp = c.fopen(conf.input_file, "r")
-  var line : int8[1024]
-
-  for i=0,num_bodies do
-    c.fgets(line, 1024, fp)
-    var index = std.atoi(cstring.strtok(line, ","))
-    bodies[index].index = index
-    bodies[index].mass_x = std.atof(cstring.strtok([&int8](0), ","))
-    bodies[index].mass_y = std.atof(cstring.strtok([&int8](0), ","))
-    bodies[index].speed_x = std.atof(cstring.strtok([&int8](0), ","))
-    bodies[index].speed_y = std.atof(cstring.strtok([&int8](0), ","))
-    bodies[index].mass = std.atof(cstring.strtok([&int8](0), ","))
-  end
-
-  c.fclose(fp)
 end
