@@ -10,10 +10,6 @@ struct Config {
   input_file : rawstring,
   input_file_set : bool,
   num_bodies : uint,
-  svg_dir : rawstring,
-  svg_dir_set : bool,
-  csv_dir : rawstring,
-  csv_dir_set : bool,
   parallelism : uint,
   leaf_size : uint
   fixed_partition_size : uint,
@@ -25,8 +21,6 @@ terra parse_input_args()
   conf.time_steps = 10
   conf.input_file_set = false
   conf.num_bodies = -1
-  conf.csv_dir_set = false
-  conf.svg_dir_set = false
   conf.leaf_size = 32
   conf.parallelism = 16
   conf.fixed_partition_size = -1
@@ -42,14 +36,6 @@ terra parse_input_args()
     elseif cstring.strcmp(args.argv[i], "-n") == 0 then
       i = i + 1
       conf.num_bodies = std.atoi(args.argv[i])
-    elseif cstring.strcmp(args.argv[i], "-c") == 0 then
-      i = i + 1
-      conf.csv_dir = args.argv[i]
-      conf.csv_dir_set = true
-    elseif cstring.strcmp(args.argv[i], "-s") == 0 then
-      i = i + 1
-      conf.svg_dir = args.argv[i]
-      conf.svg_dir_set = true
     elseif cstring.strcmp(args.argv[i], "-t") == 0 then
       i = i + 1
       conf.time_steps = std.atoi(args.argv[i])
