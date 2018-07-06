@@ -111,7 +111,6 @@ do
   var sector_size = size / sector_precision
 
   for body in bodies do
-    c.printf("%f %f\n", body.mass_x, body.mass_y)
     var sector_x : int64 = cmath.floor((body.mass_x - min_x) / sector_size)
     if (sector_x >= sector_precision) then
       sector_x = sector_x - 1
@@ -3045,11 +3044,16 @@ end
 task main()
   var ts_start = c.legion_get_current_time_in_micros()
   var conf = parse_input_args()
-  
+
+  var input = region(ispace(ptr, conf.num_bodies), body)  
   var all_bodies = region(ispace(ptr, conf.num_bodies), body)
 
-  attach(hdf5, all_bodies.{mass, mass_x, mass_y, speed_x, speed_y, index}, conf.input_file, regentlib.file_read_write)
-  acquire(all_bodies.{mass, mass_x, mass_y, speed_x, speed_y, index})
+  attach(hdf5, input.{mass, mass_x, mass_y, speed_x, speed_y, index}, conf.input_file, regentlib.file_read_only)
+  acquire(input.{mass, mass_x, mass_y, speed_x, speed_y, index})
+  copy(input.{mass, mass_x, mass_y, speed_x, speed_y, index}, all_bodies.{mass, mass_x, mass_y, speed_x, speed_y, index})
+  release(input.{mass, mass_x, mass_y, speed_x, speed_y, index})
+  detach(hdf5, input.{mass, mass_x, mass_y, speed_x, speed_y, index})
+  __delete(input)
 
   var sector_space = ispace(int1d, sector_precision * sector_precision)
   var roots = region(sector_space, quad)
@@ -3062,9 +3066,6 @@ task main()
   for t=0,conf.time_steps do
     run_iteration(all_bodies, roots, quads, quad_ranges, num_quads, conf, t)
   end
-
-  release(all_bodies.{mass, mass_x, mass_y, speed_x, speed_y, index})
-  detach(hdf5, all_bodies.{mass, mass_x, mass_y, speed_x, speed_y, index})
 
   __fence(__execution, __block)
   var ts_end = c.legion_get_current_time_in_micros()
