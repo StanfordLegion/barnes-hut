@@ -37,6 +37,9 @@ terra parse_input_args()
       i = i + 1
       conf.output_file = args.argv[i]
       conf.output_file_set = true
+    elseif cstring.strcmp(args.argv[i], "-n") == 0 then
+      i = i + 1
+      conf.num_bodies = std.atoi(args.argv[i])
     end
   end
 
