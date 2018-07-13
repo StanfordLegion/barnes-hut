@@ -9,7 +9,7 @@ local sqrt = regentlib.sqrt(float)
 
 local cmath = terralib.includec("math.h")
 
-local hdf5 = terralib.includec("hdf5.h")
+local hdf5 = terralib.includec("hdf5.h", {"-I", "/share/software/user/open/hdf5/1.10.2/include", "-I", "/share/software/user/open/openmpi/2.0.2/include"})
 hdf5.H5F_ACC_TRUNC = 2
 hdf5.H5T_STD_I32LE = hdf5.H5T_STD_I32LE_g
 hdf5.H5T_STD_I64LE = hdf5.H5T_STD_I64LE_g
