@@ -6,7 +6,7 @@ local c = regentlib.c
 local cstring = terralib.includec("string.h")
 local std = terralib.includec("stdlib.h")
 
-local hdf5 = terralib.includec("hdf5.h")
+local hdf5 = terralib.includec("hdf5.h", {"-I", "/share/software/user/open/hdf5/1.10.2/include", "-I", "/share/software/user/open/openmpi/2.0.2/include"})
 hdf5.H5F_ACC_TRUNC = 2
 hdf5.H5T_STD_I32LE = hdf5.H5T_STD_I32LE_g
 hdf5.H5T_IEEE_F64LE = hdf5.H5T_IEEE_F64LE_g
@@ -112,4 +112,15 @@ task main()
   detach(hdf5, output.{mass, mass_x, mass_y, speed_x, speed_y, index})
 end
 
-regentlib.start(main)
+if os.getenv('SAVEOBJ') == '1' then
+  local root_dir = arg[0]:match(".*/") or "./"
+  local out_dir = (os.getenv('OBJNAME') and os.getenv('OBJNAME'):match('.*/')) or root_dir
+  local link_flags = terralib.newlist({"-L" .. out_dir, "-lm", "-lpmi2", "-lbarnes_hut"})
+  if os.getenv('STANDALONE') == '1' then
+    os.execute('cp ' .. os.getenv('LG_RT_DIR') .. '/../bindings/regent/libregent.so ' .. out_dir)
+  end
+  local exe = os.getenv('OBJNAME') or "barnes_hut"
+  regentlib.saveobj(main, exe, "executable", nil, link_flags)
+else
+  regentlib.start(main)
+end
