@@ -3075,12 +3075,12 @@ end
 if os.getenv('SAVEOBJ') == '1' then
   local root_dir = arg[0]:match(".*/") or "./"
   local out_dir = (os.getenv('OBJNAME') and os.getenv('OBJNAME'):match('.*/')) or root_dir
-  local link_flags = terralib.newlist({"-L" .. out_dir, "-lm", "-lpmi2", "-lbarnes_hut"})
+  local link_flags = terralib.newlist({"-L" .. out_dir, "-lm", "-lpmi2", "-lhdf5", "-lbarnes_hut"})
   if os.getenv('STANDALONE') == '1' then
     os.execute('cp ' .. os.getenv('LG_RT_DIR') .. '/../bindings/regent/libregent.so ' .. out_dir)
   end
   local exe = os.getenv('OBJNAME') or "barnes_hut"
-  regentlib.saveobj(main, exe, "executable", cbarnes_hut.register_mappers, link_flags)
+  regentlib.saveobj(main, exe, "executable", nil, link_flags)
 else
-  regentlib.start(main, cbarnes_hut.register_mappers)
+  regentlib.start(main)
 end
