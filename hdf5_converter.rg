@@ -119,7 +119,7 @@ if os.getenv('SAVEOBJ') == '1' then
   if os.getenv('STANDALONE') == '1' then
     os.execute('cp ' .. os.getenv('LG_RT_DIR') .. '/../bindings/regent/libregent.so ' .. out_dir)
   end
-  local exe = os.getenv('OBJNAME') or "barnes_hut"
+  local exe = os.getenv('OBJNAME') or "hdf5_converter"
   regentlib.saveobj(main, exe, "executable", nil, link_flags)
 else
   regentlib.start(main)
