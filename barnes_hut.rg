@@ -3002,7 +3002,7 @@ do
       quads_by_sector_disjoint[i], quad_range_by_sector[i],
       quads_by_sector_disjoint[i - 1], quad_range_by_sector[i - 1],
       quads_by_sector_disjoint[i + 1], quad_range_by_sector[i + 1],
-      quads_by_sector_disjoint[i - sector_precision], quad_range_by_sector[i + sector_precision],
+      quads_by_sector_disjoint[i - sector_precision], quad_range_by_sector[i - sector_precision],
       quads_by_sector_disjoint[i - sector_precision - 1], quad_range_by_sector[i - sector_precision - 1],
       quads_by_sector_disjoint[i - sector_precision + 1], quad_range_by_sector[i - sector_precision + 1],
       quads_by_sector_disjoint[i + sector_precision], quad_range_by_sector[i + sector_precision],
