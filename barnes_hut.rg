@@ -242,7 +242,7 @@ do
     var offset = 0
     for i=0,sector_precision*sector_precision do
       var current = bodies_by_sector[i]
-      var quad_size_estimate = current.ispace.volume * 12 / 5
+      var quad_size_estimate = current.ispace.volume * 2
       quad_ranges[i] = rect1d({offset, offset + quad_size_estimate})
       offset += quad_size_estimate + 1
     end
