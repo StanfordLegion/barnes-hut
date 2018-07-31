@@ -6,7 +6,7 @@ local c = regentlib.c
 local cstring = terralib.includec("string.h")
 local std = terralib.includec("stdlib.h")
 
-local hdf5 = terralib.includec("hdf5.h", {"-I", "/share/software/user/open/hdf5/1.10.2/include", "-I", "/share/software/user/open/openmpi/2.0.2/include"})
+local hdf5 = terralib.includec("hdf5.h")
 hdf5.H5F_ACC_TRUNC = 2
 hdf5.H5T_STD_I32LE = hdf5.H5T_STD_I32LE_g
 hdf5.H5T_IEEE_F64LE = hdf5.H5T_IEEE_F64LE_g

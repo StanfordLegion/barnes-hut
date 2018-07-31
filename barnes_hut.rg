@@ -9,7 +9,7 @@ local sqrt = regentlib.sqrt(float)
 
 local cmath = terralib.includec("math.h")
 
-local hdf5 = terralib.includec("hdf5.h", {"-I", "/share/software/user/open/hdf5/1.10.2/include", "-I", "/share/software/user/open/openmpi/2.0.2/include"})
+local hdf5 = terralib.includec("hdf5.h")
 hdf5.H5F_ACC_TRUNC = 2
 hdf5.H5T_STD_I32LE = hdf5.H5T_STD_I32LE_g
 hdf5.H5T_STD_I64LE = hdf5.H5T_STD_I64LE_g
@@ -379,7 +379,7 @@ task main()
   var ts_start = c.legion_get_current_time_in_micros()
   var conf = parse_input_args()
 
-  var input = region(ispace(ptr, conf.num_bodies), body)  
+  var input = region(ispace(ptr, conf.num_bodies), body)
   var all_bodies = region(ispace(ptr, conf.num_bodies), body)
 
   attach(hdf5, input.{mass, mass_x, mass_y, speed_x, speed_y, index}, conf.input_file, regentlib.file_read_only)
@@ -393,7 +393,7 @@ task main()
   var roots = region(sector_space, quad)
   var quad_ranges = region(sector_space, rect1d)
 
-  var num_quads = conf.num_bodies * 12 / 5 + sector_precision*sector_precision
+  var num_quads = conf.num_bodies * 2 + sector_precision*sector_precision
 
   var quads = region(ispace(int1d, num_quads), quad)
 
