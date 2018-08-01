@@ -9,7 +9,7 @@ local sqrt = regentlib.sqrt(float)
 
 local cmath = terralib.includec("math.h")
 
-local hdf5 = terralib.includec("hdf5.h")
+local hdf5 = terralib.includec(os.getenv("HDF_HEADER") or "hdf5.h")
 hdf5.H5F_ACC_TRUNC = 2
 hdf5.H5T_STD_I32LE = hdf5.H5T_STD_I32LE_g
 hdf5.H5T_STD_I64LE = hdf5.H5T_STD_I64LE_g
@@ -409,7 +409,7 @@ end
 if os.getenv('SAVEOBJ') == '1' then
   local root_dir = arg[0]:match(".*/") or "./"
   local out_dir = (os.getenv('OBJNAME') and os.getenv('OBJNAME'):match('.*/')) or root_dir
-  local link_flags = terralib.newlist({"-L" .. out_dir, "-lm", "-lpmi2", "-lbarnes_hut"})
+  local link_flags = terralib.newlist({"-L" .. out_dir, "-lm", "-lbarnes_hut"})
   if os.getenv('STANDALONE') == '1' then
     os.execute('cp ' .. os.getenv('LG_RT_DIR') .. '/../bindings/regent/libregent.so ' .. out_dir)
   end
