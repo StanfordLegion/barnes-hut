@@ -372,7 +372,7 @@ do
   __delete(bodies_by_sector)
   __delete(quad_range_by_sector)
   __delete(quads_by_sector)
-  __delete(quads_by_sector_disjoint)
+  -- __delete(quads_by_sector_disjoint) -- Duplicate deletion
 end
 
 task main()
