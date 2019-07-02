@@ -300,13 +300,12 @@ do
 
   var quad_range_by_sector = partition(equal, quad_ranges, sector_space)
   var roots_by_sector = partition(equal, roots, sector_space)
-  var quads_by_sector = image(quads, quad_range_by_sector, quad_ranges)
+  var quads_by_sector = image(disjoint, quads, quad_range_by_sector, quad_ranges)
   var quads_by_sector_colors = quads_by_sector.colors
-  var quads_by_sector_disjoint = dynamic_cast(partition(disjoint, quads, quads_by_sector_colors), quads_by_sector)
 
   __demand(__parallel)
   for i in sector_space do
-    build_quad(bodies_by_sector[i], roots_by_sector[i], quads_by_sector_disjoint[i], quad_range_by_sector[i], min_x, min_y, max_x, max_y, sector_precision, conf.leaf_size, conf.max_depth, i)
+    build_quad(bodies_by_sector[i], roots_by_sector[i], quads_by_sector[i], quad_range_by_sector[i], min_x, min_y, max_x, max_y, sector_precision, conf.leaf_size, conf.max_depth, i)
   end
 
   __demand(__parallel)
@@ -316,47 +315,47 @@ do
   
   __demand(__parallel)
   for i in sector_space do
-    update_body_force(bodies_by_sector[i], quads_by_sector_disjoint[i], quad_range_by_sector[i], i)
+    update_body_force(bodies_by_sector[i], quads_by_sector[i], quad_range_by_sector[i], i)
   end
 
   __demand(__parallel)
   for i=0,sector_precision*sector_precision-1 do
-    update_body_force(bodies_by_sector[i], quads_by_sector_disjoint[i + 1], quad_range_by_sector[i + 1], i + 1)
+    update_body_force(bodies_by_sector[i], quads_by_sector[i + 1], quad_range_by_sector[i + 1], i + 1)
   end
   
   __demand(__parallel)
   for i=1,sector_precision*sector_precision do
-    update_body_force(bodies_by_sector[i], quads_by_sector_disjoint[i - 1], quad_range_by_sector[i - 1], i - 1)
+    update_body_force(bodies_by_sector[i], quads_by_sector[i - 1], quad_range_by_sector[i - 1], i - 1)
   end
 
   __demand(__parallel)
   for i=0,sector_precision*(sector_precision-1) do
-    update_body_force(bodies_by_sector[i], quads_by_sector_disjoint[i + sector_precision], quad_range_by_sector[i + sector_precision], i + sector_precision)
+    update_body_force(bodies_by_sector[i], quads_by_sector[i + sector_precision], quad_range_by_sector[i + sector_precision], i + sector_precision)
   end
 
   __demand(__parallel)
   for i=sector_precision,sector_precision*sector_precision do
-    update_body_force(bodies_by_sector[i], quads_by_sector_disjoint[i - sector_precision], quad_range_by_sector[i - sector_precision], i - sector_precision)
+    update_body_force(bodies_by_sector[i], quads_by_sector[i - sector_precision], quad_range_by_sector[i - sector_precision], i - sector_precision)
   end
 
   __demand(__parallel)
   for i=0,sector_precision*(sector_precision-1)-1 do
-    update_body_force(bodies_by_sector[i], quads_by_sector_disjoint[i + sector_precision + 1], quad_range_by_sector[i + sector_precision + 1], i + sector_precision + 1)
+    update_body_force(bodies_by_sector[i], quads_by_sector[i + sector_precision + 1], quad_range_by_sector[i + sector_precision + 1], i + sector_precision + 1)
   end
 
   __demand(__parallel)
   for i=0,sector_precision*(sector_precision-1) do
-    update_body_force(bodies_by_sector[i], quads_by_sector_disjoint[i + sector_precision - 1], quad_range_by_sector[i + sector_precision - 1], i + sector_precision - 1)
+    update_body_force(bodies_by_sector[i], quads_by_sector[i + sector_precision - 1], quad_range_by_sector[i + sector_precision - 1], i + sector_precision - 1)
   end
 
   __demand(__parallel)
   for i=sector_precision+1,sector_precision*sector_precision do
-    update_body_force(bodies_by_sector[i], quads_by_sector_disjoint[i - sector_precision - 1], quad_range_by_sector[i - sector_precision - 1], i - sector_precision - 1)
+    update_body_force(bodies_by_sector[i], quads_by_sector[i - sector_precision - 1], quad_range_by_sector[i - sector_precision - 1], i - sector_precision - 1)
   end
 
   __demand(__parallel)
   for i=sector_precision,sector_precision*sector_precision do
-    update_body_force(bodies_by_sector[i], quads_by_sector_disjoint[i - sector_precision + 1], quad_range_by_sector[i - sector_precision + 1], i - sector_precision + 1)
+    update_body_force(bodies_by_sector[i], quads_by_sector[i - sector_precision + 1], quad_range_by_sector[i - sector_precision + 1], i - sector_precision + 1)
   end
 
   __demand(__parallel)
@@ -372,7 +371,6 @@ do
   __delete(bodies_by_sector)
   __delete(quad_range_by_sector)
   __delete(quads_by_sector)
-  -- __delete(quads_by_sector_disjoint) -- Duplicate deletion
 end
 
 task main()
