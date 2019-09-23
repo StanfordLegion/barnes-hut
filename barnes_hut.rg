@@ -265,27 +265,27 @@ do
   var body_partition_index = ispace(ptr, conf.parallelism * 2)
   var bodies_partition = partition(equal, bodies, body_partition_index)
   
-  __demand(__parallel)
+  __demand(__index_launch)
   for i in body_partition_index do
     min_x min= update_boundaries_mass_x_min(bodies_partition[i])
   end
   
-  __demand(__parallel)
+  __demand(__index_launch)
   for i in body_partition_index do
     max_x max= update_boundaries_mass_x_max(bodies_partition[i])
   end
   
-  __demand(__parallel)
+  __demand(__index_launch)
   for i in body_partition_index do
     min_y min= update_boundaries_mass_y_min(bodies_partition[i])
   end
   
-  __demand(__parallel)
+  __demand(__index_launch)
   for i in body_partition_index do
     max_y max= update_boundaries_mass_y_max(bodies_partition[i])
   end
 
-  __demand(__parallel)
+  __demand(__index_launch)
   for i in body_partition_index do
     assign_sectors(bodies_partition[i], min_x, min_y, max_x, max_y)
   end
@@ -303,67 +303,67 @@ do
   var quads_by_sector = image(disjoint, quads, quad_range_by_sector, quad_ranges)
   var quads_by_sector_colors = quads_by_sector.colors
 
-  __demand(__parallel)
+  __demand(__index_launch)
   for i in sector_space do
     build_quad(bodies_by_sector[i], roots_by_sector[i], quads_by_sector[i], quad_range_by_sector[i], min_x, min_y, max_x, max_y, sector_precision, conf.leaf_size, conf.max_depth, i)
   end
 
-  __demand(__parallel)
+  __demand(__index_launch)
   for i in sector_space do
     update_body_force_root(bodies_by_sector[i], roots, i)
   end
   
-  __demand(__parallel)
+  __demand(__index_launch)
   for i in sector_space do
     update_body_force(bodies_by_sector[i], quads_by_sector[i], quad_range_by_sector[i], i)
   end
 
-  __demand(__parallel)
+  __demand(__index_launch)
   for i=0,sector_precision*sector_precision-1 do
     update_body_force(bodies_by_sector[i], quads_by_sector[i + 1], quad_range_by_sector[i + 1], i + 1)
   end
   
-  __demand(__parallel)
+  __demand(__index_launch)
   for i=1,sector_precision*sector_precision do
     update_body_force(bodies_by_sector[i], quads_by_sector[i - 1], quad_range_by_sector[i - 1], i - 1)
   end
 
-  __demand(__parallel)
+  __demand(__index_launch)
   for i=0,sector_precision*(sector_precision-1) do
     update_body_force(bodies_by_sector[i], quads_by_sector[i + sector_precision], quad_range_by_sector[i + sector_precision], i + sector_precision)
   end
 
-  __demand(__parallel)
+  __demand(__index_launch)
   for i=sector_precision,sector_precision*sector_precision do
     update_body_force(bodies_by_sector[i], quads_by_sector[i - sector_precision], quad_range_by_sector[i - sector_precision], i - sector_precision)
   end
 
-  __demand(__parallel)
+  __demand(__index_launch)
   for i=0,sector_precision*(sector_precision-1)-1 do
     update_body_force(bodies_by_sector[i], quads_by_sector[i + sector_precision + 1], quad_range_by_sector[i + sector_precision + 1], i + sector_precision + 1)
   end
 
-  __demand(__parallel)
+  __demand(__index_launch)
   for i=0,sector_precision*(sector_precision-1) do
     update_body_force(bodies_by_sector[i], quads_by_sector[i + sector_precision - 1], quad_range_by_sector[i + sector_precision - 1], i + sector_precision - 1)
   end
 
-  __demand(__parallel)
+  __demand(__index_launch)
   for i=sector_precision+1,sector_precision*sector_precision do
     update_body_force(bodies_by_sector[i], quads_by_sector[i - sector_precision - 1], quad_range_by_sector[i - sector_precision - 1], i - sector_precision - 1)
   end
 
-  __demand(__parallel)
+  __demand(__index_launch)
   for i=sector_precision,sector_precision*sector_precision do
     update_body_force(bodies_by_sector[i], quads_by_sector[i - sector_precision + 1], quad_range_by_sector[i - sector_precision + 1], i - sector_precision + 1)
   end
 
-  __demand(__parallel)
+  __demand(__index_launch)
   for i in sector_space do
     update_body_mass(bodies_by_sector[i])
   end
 
-  __demand(__parallel)
+  __demand(__index_launch)
   for i in sector_space do
     update_body_speed(bodies_by_sector[i])
   end
