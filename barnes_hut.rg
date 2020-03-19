@@ -23,9 +23,18 @@ local sector_precision = 8
 
 local cbarnes_hut
 do
-  assert(os.getenv('LG_RT_DIR') ~= nil, "$LG_RT_DIR should be set!")
   local root_dir = arg[0]:match(".*/") or "./"
-  local runtime_dir = os.getenv("LG_RT_DIR") .. "/"
+
+  local include_path = ""
+  local include_dirs = terralib.newlist()
+  include_dirs:insert("-I")
+  include_dirs:insert(root_dir)
+  for path in string.gmatch(os.getenv("INCLUDE_PATH"), "[^;]+") do
+    include_path = include_path .. " -I " .. path
+    include_dirs:insert("-I")
+    include_dirs:insert(path)
+  end
+
   local barnes_hut_cc = root_dir .. "barnes_hut.cc"
   local barnes_hut_so
   if os.getenv('SAVEOBJ') == '1' then
@@ -45,7 +54,7 @@ do
     cxx_flags = cxx_flags .. " -shared -fPIC"
   end
 
-  local cmd = (cxx .. " " .. cxx_flags .. " -I " .. runtime_dir .. " " ..
+  local cmd = (cxx .. " " .. cxx_flags .. " " .. include_path .. " " ..
                  barnes_hut_cc .. " -o " .. barnes_hut_so)
   if os.execute(cmd) ~= 0 then
     print("Error: failed to compile " .. barnes_hut_cc)
@@ -53,7 +62,7 @@ do
   end
   terralib.linklibrary(barnes_hut_so)
   cbarnes_hut =
-    terralib.includec("barnes_hut.h", {"-I", root_dir, "-I", runtime_dir})
+    terralib.includec("barnes_hut.h", include_dirs)
 end
 
 task update_boundaries_mass_x_max(bodies : region(body))
