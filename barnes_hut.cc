@@ -21,7 +21,7 @@
 using namespace Legion;
 using namespace Legion::Mapping;
 
-static LegionRuntime::Logger::Category log_mapper("barnes_hut");
+static Logger log_mapper("barnes_hut");
 
 class BarnesHutMapper : public DefaultMapper {
 public:
@@ -234,7 +234,7 @@ void BarnesHutMapper::slice_task(const MapperContext ctx,
   for (Domain::DomainPointIterator itr(task.index_domain); itr; itr++, idx++) {
     TaskSlice &slice = output.slices[idx];
 
-    slice.domain = Domain::from_point<1>(itr.p.get_point<1>());
+    slice.domain = Domain(itr.p, itr.p);
     long sector;
 
     if (strcmp(task_name, "update_bodies_first") == 0) {
@@ -246,7 +246,7 @@ void BarnesHutMapper::slice_task(const MapperContext ctx,
     } else if (strcmp(task_name, "update_bodies_last") == 0) {
       sector = sector_size * sector_size - 1;
     } else {
-      sector = itr.p.get_point<1>().x[0];      
+      sector = itr.p[0];      
     }
 
     // printf("sector %lu\n", sector);
