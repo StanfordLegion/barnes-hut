@@ -21,49 +21,8 @@ local delta = 0.1
 local theta = 0.5
 local sector_precision = 8
 
-local cbarnes_hut
-do
-  local root_dir = arg[0]:match(".*/") or "./"
-
-  local include_path = ""
-  local include_dirs = terralib.newlist()
-  include_dirs:insert("-I")
-  include_dirs:insert(root_dir)
-  for path in string.gmatch(os.getenv("INCLUDE_PATH"), "[^;]+") do
-    include_path = include_path .. " -I " .. path
-    include_dirs:insert("-I")
-    include_dirs:insert(path)
-  end
-
-  local barnes_hut_cc = root_dir .. "barnes_hut.cc"
-  local barnes_hut_so
-  if os.getenv('SAVEOBJ') == '1' then
-    barnes_hut_so = root_dir .. "libbarnes_hut.so"
-  else
-    barnes_hut_so = os.tmpname() .. ".so" -- root_dir .. "mapper.so"
-  end
-  local cxx = os.getenv('CXX') or 'c++'
-
-  local cxx_flags = os.getenv('CXXFLAGS') or ''
-  cxx_flags = cxx_flags .. " -O2 -Wall -Werror"
-  if os.execute('test "$(uname)" = Darwin') == 0 then
-    cxx_flags =
-      (cxx_flags ..
-         " -dynamiclib -single_module -undefined dynamic_lookup -fPIC")
-  else
-    cxx_flags = cxx_flags .. " -shared -fPIC"
-  end
-
-  local cmd = (cxx .. " " .. cxx_flags .. " " .. include_path .. " " ..
-                 barnes_hut_cc .. " -o " .. barnes_hut_so)
-  if os.execute(cmd) ~= 0 then
-    print("Error: failed to compile " .. barnes_hut_cc)
-    assert(false, "")
-  end
-  terralib.linklibrary(barnes_hut_so)
-  cbarnes_hut =
-    terralib.includec("barnes_hut.h", include_dirs)
-end
+local launcher = require("std/launcher")
+local cbarnes_hut = launcher.build_library("barnes_hut")
 
 task update_boundaries_mass_x_max(bodies : region(body))
   where
@@ -410,15 +369,4 @@ task main()
   c.printf("%d\n", (ts_end - ts_start) / 1000)
 end
 
-if os.getenv('SAVEOBJ') == '1' then
-  local root_dir = arg[0]:match(".*/") or "./"
-  local out_dir = (os.getenv('OBJNAME') and os.getenv('OBJNAME'):match('.*/')) or root_dir
-  local link_flags = terralib.newlist({"-L" .. out_dir, "-lm", "-lbarnes_hut"})
-  if os.getenv('STANDALONE') == '1' then
-    os.execute('cp ' .. os.getenv('LG_RT_DIR') .. '/../bindings/regent/libregent.so ' .. out_dir)
-  end
-  local exe = os.getenv('OBJNAME') or "barnes_hut"
-  regentlib.saveobj(main, exe, "executable", cbarnes_hut.register_mappers, link_flags)
-else
-  regentlib.start(main, cbarnes_hut.register_mappers)
-end
+launcher.launch(main, "barnes_hut", cbarnes_hut.register_mappers, {"-lbarnes_hut", "-lm"})
