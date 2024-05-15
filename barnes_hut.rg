@@ -271,6 +271,7 @@ do
   var max_x = -math.huge
   var max_y = -math.huge
   
+  do
   var body_partition_index = ispace(ptr, conf.parallelism * 2)
   var bodies_partition = partition(equal, bodies, body_partition_index)
   
@@ -298,8 +299,7 @@ do
   for i in body_partition_index do
     assign_sectors(bodies_partition[i], min_x, min_y, max_x, max_y)
   end
-    
-  __delete(bodies_partition)
+  end -- body_partition
       
   var bodies_by_sector = partition(bodies.sector, sector_space)
   fill(bodies.{force_x, force_y}, 0)
@@ -376,25 +376,22 @@ do
   for i in sector_space do
     update_body_speed(bodies_by_sector[i])
   end
-
-  __delete(bodies_by_sector)
-  __delete(quad_range_by_sector)
-  __delete(quads_by_sector)
 end
 
 task main()
   var ts_start = c.legion_get_current_time_in_micros()
   var conf = parse_input_args()
 
-  var input = region(ispace(ptr, conf.num_bodies), body)
   var all_bodies = region(ispace(ptr, conf.num_bodies), body)
 
-  attach(hdf5, input.{mass, mass_x, mass_y, speed_x, speed_y, index}, conf.input_file, regentlib.file_read_only)
-  acquire(input.{mass, mass_x, mass_y, speed_x, speed_y, index})
-  copy(input.{mass, mass_x, mass_y, speed_x, speed_y, index}, all_bodies.{mass, mass_x, mass_y, speed_x, speed_y, index})
-  release(input.{mass, mass_x, mass_y, speed_x, speed_y, index})
-  detach(hdf5, input.{mass, mass_x, mass_y, speed_x, speed_y, index})
-  __delete(input)
+  do
+    var input = region(ispace(ptr, conf.num_bodies), body)
+    attach(hdf5, input.{mass, mass_x, mass_y, speed_x, speed_y, index}, conf.input_file, regentlib.file_read_only)
+    acquire(input.{mass, mass_x, mass_y, speed_x, speed_y, index})
+    copy(input.{mass, mass_x, mass_y, speed_x, speed_y, index}, all_bodies.{mass, mass_x, mass_y, speed_x, speed_y, index})
+    release(input.{mass, mass_x, mass_y, speed_x, speed_y, index})
+    detach(hdf5, input.{mass, mass_x, mass_y, speed_x, speed_y, index})
+  end
 
   var sector_space = ispace(int1d, sector_precision * sector_precision)
   var roots = region(sector_space, quad)
