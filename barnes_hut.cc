@@ -258,7 +258,7 @@ void BarnesHutMapper::slice_task(const MapperContext ctx,
   }
 }
 
-static void create_mappers(Machine machine, HighLevelRuntime *runtime,
+static void create_mappers(Machine machine, Runtime *runtime,
                            const std::set<Processor> &local_procs) {
   printf("Address space count %lu\n", machine.get_address_space_count());
 
@@ -294,7 +294,7 @@ static void create_mappers(Machine machine, HighLevelRuntime *runtime,
 }
 
 void register_mappers() {
-  HighLevelRuntime::add_registration_callback(create_mappers);
+  Runtime::add_registration_callback(create_mappers);
 }
 
 
